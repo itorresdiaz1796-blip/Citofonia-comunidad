@@ -1,0 +1,1981 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Prototipo navegable de citofonia y gestion de condominios. Datos simulados, sin servidor.">
+<style>*{margin:0;padding:0}</style>
+</head>
+<body>
+<title>Citofonía Comunidad · Prototipo navegable</title>
+
+<style>
+/* ================================================================
+   TOKENS
+   ================================================================ */
+:root{
+  /* Página (sigue el tema del visor) */
+  --pg-bg:#EEF1F4;
+  --pg-bg-2:#E3E8EC;
+  --pg-panel:#FFFFFF;
+  --pg-ink:#141A20;
+  --pg-ink-2:#4A5661;
+  --pg-ink-3:#79868F;
+  --pg-line:#D2DAE0;
+  --pg-line-2:#BFC9D1;
+
+  /* Teléfono (app del residente, sigue el tema) */
+  --ph-bg:#F4F6F8;
+  --ph-card:#FFFFFF;
+  --ph-ink:#151C23;
+  --ph-ink-2:#5A6772;
+  --ph-line:#E2E8ED;
+  --ph-nav:#FFFFFFEE;
+
+  /* Consola de conserjería: siempre oscura (turno de noche, menos reflejo) */
+  --cs-bg:#131A22;
+  --cs-bg-2:#1A222C;
+  --cs-card:#1F2833;
+  --cs-card-2:#26313D;
+  --cs-ink:#E8EDF1;
+  --cs-ink-2:#94A3B0;
+  --cs-ink-3:#6B7A88;
+  --cs-line:#2E3A47;
+  --cs-line-2:#3A4854;
+
+  /* Acento e identidad */
+  --accent:#2E7D8C;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#2E7D8C1A;
+  --accent-bright:#4FB3C4;
+
+  /* Ámbar de señal: "algo está vivo o esperando" */
+  --signal:#E8A72C;
+  --signal-glow:#FFC24D;
+  --signal-soft:#E8A72C22;
+
+  /* Semánticos */
+  --ok:#3E8E5A;
+  --ok-soft:#3E8E5A1F;
+  --warn:#C8811F;
+  --bad:#C4453C;
+  --bad-soft:#C4453C1F;
+
+  --mono:ui-monospace,"SFMono-Regular","SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+
+  --r-sm:6px; --r-md:10px; --r-lg:16px; --r-xl:26px;
+  --shadow:0 1px 2px #0b12180d, 0 8px 24px -8px #0b12181f;
+  --shadow-lg:0 2px 4px #0b121814, 0 30px 60px -20px #0b12183d;
+}
+
+@media (prefers-color-scheme:dark){
+  :root{
+    --pg-bg:#0D1218; --pg-bg-2:#111820; --pg-panel:#161E27;
+    --pg-ink:#E6ECF1; --pg-ink-2:#9CAAB6; --pg-ink-3:#6F7E8B;
+    --pg-line:#243040; --pg-line-2:#2E3B4A;
+    --ph-bg:#12181F; --ph-card:#1A222B; --ph-ink:#E7EDF2;
+    --ph-ink-2:#94A3AF; --ph-line:#26313C; --ph-nav:#1A222BEE;
+    --accent:#4FB3C4; --accent-ink:#08191D; --accent-soft:#4FB3C420;
+    --ok:#5FB47C; --ok-soft:#5FB47C1F; --bad:#E0685E; --bad-soft:#E0685E1F;
+    --warn:#DFA243;
+    --shadow:0 1px 2px #0000004d, 0 8px 24px -8px #00000080;
+    --shadow-lg:0 2px 4px #00000059, 0 30px 60px -20px #000000a6;
+  }
+}
+:root[data-theme="light"]{
+  --pg-bg:#EEF1F4; --pg-bg-2:#E3E8EC; --pg-panel:#FFFFFF;
+  --pg-ink:#141A20; --pg-ink-2:#4A5661; --pg-ink-3:#79868F;
+  --pg-line:#D2DAE0; --pg-line-2:#BFC9D1;
+  --ph-bg:#F4F6F8; --ph-card:#FFFFFF; --ph-ink:#151C23;
+  --ph-ink-2:#5A6772; --ph-line:#E2E8ED; --ph-nav:#FFFFFFEE;
+  --accent:#2E7D8C; --accent-ink:#FFFFFF; --accent-soft:#2E7D8C1A;
+  --ok:#3E8E5A; --ok-soft:#3E8E5A1F; --bad:#C4453C; --bad-soft:#C4453C1F;
+  --warn:#C8811F;
+  --shadow:0 1px 2px #0b12180d, 0 8px 24px -8px #0b12181f;
+  --shadow-lg:0 2px 4px #0b121814, 0 30px 60px -20px #0b12183d;
+}
+:root[data-theme="dark"]{
+  --pg-bg:#0D1218; --pg-bg-2:#111820; --pg-panel:#161E27;
+  --pg-ink:#E6ECF1; --pg-ink-2:#9CAAB6; --pg-ink-3:#6F7E8B;
+  --pg-line:#243040; --pg-line-2:#2E3B4A;
+  --ph-bg:#12181F; --ph-card:#1A222B; --ph-ink:#E7EDF2;
+  --ph-ink-2:#94A3AF; --ph-line:#26313C; --ph-nav:#1A222BEE;
+  --accent:#4FB3C4; --accent-ink:#08191D; --accent-soft:#4FB3C420;
+  --ok:#5FB47C; --ok-soft:#5FB47C1F; --bad:#E0685E; --bad-soft:#E0685E1F;
+  --warn:#DFA243;
+  --shadow:0 1px 2px #0000004d, 0 8px 24px -8px #00000080;
+  --shadow-lg:0 2px 4px #00000059, 0 30px 60px -20px #000000a6;
+}
+
+/* ================================================================
+   BASE
+   ================================================================ */
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--pg-bg); color:var(--pg-ink);
+  font-family:var(--sans); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px;border-radius:4px}
+.eyebrow{
+  font-family:var(--mono); font-size:10px; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--pg-ink-3);
+}
+.num{font-variant-numeric:tabular-nums}
+
+/* ================================================================
+   BARRA DE DEMO
+   ================================================================ */
+.demobar{
+  position:sticky; top:0; z-index:60;
+  display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+  padding:12px 22px;
+  background:var(--pg-panel);
+  border-bottom:1px solid var(--pg-line);
+  box-shadow:0 1px 0 var(--pg-line), 0 6px 18px -12px #00000040;
+}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand b{font-size:15px;font-weight:650;letter-spacing:-.01em}
+.brand span{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--pg-ink-3)}
+.sim{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:var(--mono);font-size:10.5px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;
+  color:var(--warn); background:var(--signal-soft);
+  border:1px solid color-mix(in srgb,var(--signal) 40%,transparent);
+  padding:5px 11px; border-radius:100px;
+}
+.sim i{width:6px;height:6px;border-radius:50%;background:var(--signal);
+  box-shadow:0 0 0 3px var(--signal-soft);font-style:normal}
+.dbtn{
+  padding:7px 14px;border:1px solid var(--pg-line-2);border-radius:100px;
+  font-size:13px;font-weight:550;color:var(--pg-ink-2);
+  transition:background .15s,color .15s,border-color .15s;
+}
+.dbtn:hover{background:var(--pg-bg-2);color:var(--pg-ink)}
+.dbtn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.dbtn.primary:hover{filter:brightness(1.08)}
+.dbtn.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+
+/* Guía del recorrido */
+.tourbar{
+  display:none; align-items:center; gap:14px;
+  padding:11px 22px; background:var(--accent);color:var(--accent-ink);
+  position:sticky; top:53px; z-index:59;
+}
+.tourbar.show{display:flex}
+.tourbar .step{
+  font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;
+  padding:3px 9px;border-radius:100px;
+  background:#ffffff2e;
+}
+.tourbar p{margin:0;font-size:13.5px;flex:1;min-width:0}
+.tourbar b{font-weight:650}
+.tourbar button{
+  font-size:12px;font-weight:600;padding:5px 12px;border-radius:100px;
+  border:1px solid #ffffff59;
+}
+.tourbar button:hover{background:#ffffff26}
+
+/* ================================================================
+   ESCENARIO
+   ================================================================ */
+.stage{
+  display:grid; grid-template-columns:minmax(0,1fr) 340px;
+  gap:26px; align-items:start;
+  padding:26px 22px;
+  max-width:1420px; margin:0 auto;
+}
+.devwrap{display:flex;flex-direction:column;gap:10px;min-width:0}
+.devcap{display:flex;align-items:center;gap:9px;padding-left:2px}
+.devcap i{width:7px;height:7px;border-radius:50%;background:var(--ok);font-style:normal;
+  box-shadow:0 0 0 3px var(--ok-soft)}
+.devcap span{font-family:var(--mono);font-size:10px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--pg-ink-3)}
+
+/* ---------- Marco tablet ---------- */
+.tablet{
+  background:linear-gradient(160deg,#2B3540,#1B222B);
+  border-radius:var(--r-xl); padding:13px;
+  box-shadow:var(--shadow-lg);
+  border:1px solid #3d4a57;
+}
+.console{
+  display:grid; grid-template-columns:73px minmax(0,1fr);
+  background:var(--cs-bg); color:var(--cs-ink);
+  border-radius:14px; overflow:hidden;
+  height:640px; font-size:14px;
+}
+
+/* Navegación lateral de la consola */
+.cnav{
+  background:var(--cs-bg-2); border-right:1px solid var(--cs-line);
+  display:flex; flex-direction:column; align-items:center;
+  padding:14px 0; gap:5px;
+}
+.cnav .logo{
+  width:34px;height:34px;border-radius:9px;margin-bottom:12px;
+  background:var(--accent-bright); color:#08191D;
+  display:grid;place-items:center;
+  font-family:var(--mono);font-weight:700;font-size:15px;
+}
+.cnav button{
+  width:57px;padding:9px 0 7px;border-radius:9px;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  color:var(--cs-ink-3); position:relative;
+  transition:background .15s,color .15s;
+}
+.cnav button svg{width:19px;height:19px;stroke-width:1.7}
+.cnav button span{font-size:9.5px;font-weight:600;letter-spacing:.02em}
+.cnav button:hover{background:var(--cs-card);color:var(--cs-ink-2)}
+.cnav button.on{background:var(--cs-card-2);color:var(--accent-bright)}
+.cnav button .badge{
+  position:absolute;top:5px;right:8px;min-width:16px;height:16px;padding:0 4px;
+  border-radius:100px;background:var(--signal);color:#241800;
+  font-family:var(--mono);font-size:10px;font-weight:700;line-height:16px;
+}
+
+/* Cuerpo de la consola */
+.cbody{display:flex;flex-direction:column;min-width:0}
+.chead{
+  display:flex;align-items:center;gap:14px;
+  padding:13px 18px;border-bottom:1px solid var(--cs-line);
+  background:var(--cs-bg-2);
+}
+.chead .bld{min-width:0}
+.chead .bld b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.chead .bld small{font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--cs-ink-3)}
+.chead .who{margin-left:auto;text-align:right;flex-shrink:0}
+.chead .who b{display:block;font-size:12.5px;font-weight:600}
+.chead .who small{font-size:10.5px;color:var(--cs-ink-3)}
+.chead .clock{
+  font-family:var(--mono);font-size:15px;font-weight:600;
+  padding-left:14px;border-left:1px solid var(--cs-line);flex-shrink:0;
+}
+.cview{flex:1;overflow-y:auto;padding:18px}
+.cview::-webkit-scrollbar{width:9px}
+.cview::-webkit-scrollbar-thumb{background:var(--cs-line-2);border-radius:9px}
+
+.csec{display:flex;align-items:baseline;gap:10px;margin:0 0 13px}
+.csec h3{margin:0;font-size:13px;font-weight:650;letter-spacing:-.005em}
+.csec .hint{font-size:11.5px;color:var(--cs-ink-3);margin-left:auto;text-align:right}
+
+/* ---------- Placa de citófono ---------- */
+.plate{
+  background:linear-gradient(155deg,var(--cs-card-2),var(--cs-card));
+  border:1px solid var(--cs-line-2); border-radius:12px; padding:13px;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(122px,1fr)); gap:9px;
+}
+.ubtn{
+  position:relative; text-align:left;
+  background:var(--cs-bg); border:1px solid var(--cs-line-2);
+  border-radius:8px; padding:10px 11px;
+  transition:border-color .15s,transform .08s,background .15s;
+}
+.ubtn:hover{border-color:var(--accent-bright);background:var(--cs-card)}
+.ubtn:active{transform:translateY(1px)}
+.ubtn b{
+  display:block;font-family:var(--mono);font-size:19px;font-weight:600;
+  letter-spacing:.01em;color:var(--cs-ink);
+}
+.ubtn small{display:block;font-size:11px;color:var(--cs-ink-3);margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ubtn .led{
+  position:absolute;top:11px;right:11px;
+  width:7px;height:7px;border-radius:50%;
+  background:var(--ok);box-shadow:0 0 5px var(--ok);
+}
+.ubtn.nopush .led{background:var(--cs-ink-3);box-shadow:none}
+.ubtn.calling{border-color:var(--signal);background:var(--signal-soft)}
+.ubtn.calling .led{background:var(--signal);animation:blink 1s steps(2,end) infinite}
+@keyframes blink{50%{opacity:.15}}
+
+/* ---------- Panel de llamada activa ---------- */
+.callpanel{
+  margin-top:13px;border-radius:12px;padding:16px 18px;
+  background:var(--cs-card);border:1px solid var(--cs-line-2);
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+}
+.callpanel.live{border-color:var(--signal);box-shadow:inset 0 0 0 1px var(--signal-soft)}
+.callpanel .ring{
+  width:46px;height:46px;border-radius:50%;flex-shrink:0;
+  display:grid;place-items:center;
+  background:var(--signal-soft);color:var(--signal);
+}
+.callpanel .ring svg{width:21px;height:21px;stroke-width:1.8}
+.callpanel.live .ring{animation:pulse 1.4s ease-out infinite}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 var(--signal-soft)}
+  100%{box-shadow:0 0 0 14px transparent}
+}
+.callpanel .meta{flex:1;min-width:120px}
+.callpanel .meta b{display:block;font-size:15px;font-weight:600}
+.callpanel .meta small{font-size:12px;color:var(--cs-ink-2)}
+.timer{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:.02em}
+
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;
+  padding:4px 9px;border-radius:100px;white-space:nowrap;
+}
+.chip svg{width:11px;height:11px;stroke-width:2.2}
+.chip.e2e{background:var(--ok-soft);color:var(--ok);
+  border:1px solid color-mix(in srgb,var(--ok) 35%,transparent)}
+.chip.clear{background:var(--bad-soft);color:var(--bad);
+  border:1px solid color-mix(in srgb,var(--bad) 45%,transparent)}
+.chip.wait{background:var(--signal-soft);color:var(--warn);
+  border:1px solid color-mix(in srgb,var(--signal) 40%,transparent)}
+.chip.neutral{background:var(--cs-card-2);color:var(--cs-ink-2);
+  border:1px solid var(--cs-line-2)}
+
+/* Botones de la consola */
+.cbtn{
+  padding:9px 15px;border-radius:8px;font-size:13px;font-weight:600;
+  border:1px solid var(--cs-line-2);color:var(--cs-ink-2);
+  transition:background .15s,color .15s,border-color .15s;
+}
+.cbtn:hover{background:var(--cs-card-2);color:var(--cs-ink)}
+.cbtn.acc{background:var(--accent-bright);color:#08191D;border-color:transparent}
+.cbtn.acc:hover{filter:brightness(1.09)}
+.cbtn.danger{background:var(--bad);color:#fff;border-color:transparent}
+.cbtn.danger:hover{filter:brightness(1.08)}
+.cbtn.big{padding:13px 20px;font-size:14px}
+.cbtn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ---------- Formularios de consola ---------- */
+.cform{
+  background:var(--cs-card);border:1px solid var(--cs-line);border-radius:12px;
+  padding:15px;display:grid;gap:11px;
+}
+.frow{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:11px}
+.fld{display:flex;flex-direction:column;gap:5px;min-width:0}
+.fld label{font-family:var(--mono);font-size:9.5px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--cs-ink-3)}
+.fld input,.fld select{
+  background:var(--cs-bg);border:1px solid var(--cs-line-2);border-radius:7px;
+  padding:9px 11px;font-size:13.5px;color:var(--cs-ink);width:100%;
+}
+.fld input:focus,.fld select:focus{border-color:var(--accent-bright);outline:none}
+.fld input::placeholder{color:var(--cs-ink-3)}
+
+/* ---------- Tablas ---------- */
+.tablewrap{overflow-x:auto;border:1px solid var(--cs-line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{
+  text-align:left;padding:9px 12px;background:var(--cs-bg-2);
+  font-family:var(--mono);font-size:9.5px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--cs-ink-3);
+  border-bottom:1px solid var(--cs-line);white-space:nowrap;
+}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--cs-line);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--cs-card)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.empty{padding:30px 16px;text-align:center;color:var(--cs-ink-3);font-size:12.5px}
+
+.pill{
+  display:inline-block;font-family:var(--mono);font-size:9.5px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:100px;
+}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.wait{background:var(--signal-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.info{background:var(--accent-soft);color:var(--accent-bright)}
+
+/* Resultado del escaneo */
+.scanres{
+  border-radius:12px;padding:16px;margin-bottom:13px;
+  display:flex;gap:15px;align-items:flex-start;
+  border:1px solid; animation:drop .28s ease-out;
+}
+@keyframes drop{from{opacity:0;transform:translateY(-6px)}}
+.scanres.ok{background:var(--ok-soft);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+.scanres.bad{background:var(--bad-soft);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+.scanres .av{
+  width:48px;height:48px;border-radius:11px;flex-shrink:0;display:grid;place-items:center;
+  font-family:var(--mono);font-size:17px;font-weight:600;
+  background:var(--cs-bg);color:var(--cs-ink);border:1px solid var(--cs-line-2);
+}
+.scanres .txt{flex:1;min-width:0}
+.scanres .verdict{font-family:var(--mono);font-size:11px;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase}
+.scanres.ok .verdict{color:var(--ok)}
+.scanres.bad .verdict{color:var(--bad)}
+.scanres .name{font-size:17px;font-weight:650;margin:2px 0 3px}
+.scanres .det{font-size:12px;color:var(--cs-ink-2)}
+
+.scanbox{
+  border:1.5px dashed var(--cs-line-2);border-radius:12px;padding:22px;
+  text-align:center;background:var(--cs-card);
+}
+.scanbox p{margin:0 0 13px;font-size:12.5px;color:var(--cs-ink-3)}
+
+/* Filtros */
+.filters{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap}
+.fchip{
+  padding:6px 13px;border-radius:100px;border:1px solid var(--cs-line-2);
+  font-size:12px;font-weight:600;color:var(--cs-ink-3);
+}
+.fchip:hover{color:var(--cs-ink);background:var(--cs-card)}
+.fchip.on{background:var(--accent-bright);color:#08191D;border-color:transparent}
+
+/* ================================================================
+   TELÉFONO
+   ================================================================ */
+.phonewrap{position:sticky;top:80px;display:flex;flex-direction:column;gap:10px}
+.phone{
+  background:linear-gradient(160deg,#333D48,#1D242D);
+  border-radius:38px;padding:10px;box-shadow:var(--shadow-lg);
+  border:1px solid #444f5c;
+}
+.pscreen{
+  position:relative;overflow:hidden;
+  background:var(--ph-bg);color:var(--ph-ink);
+  border-radius:30px;height:646px;
+  display:flex;flex-direction:column;
+}
+.pstatus{
+  display:flex;align-items:center;padding:11px 20px 5px;flex-shrink:0;
+  font-family:var(--mono);font-size:11px;font-weight:600;
+}
+.pstatus .dnd{
+  margin-left:auto;display:inline-flex;align-items:center;gap:4px;
+  color:var(--warn);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+}
+.pstatus .dnd svg{width:11px;height:11px;stroke-width:2.2}
+.pbody{flex:1;overflow-y:auto;padding:6px 16px 16px}
+.pbody::-webkit-scrollbar{width:0}
+.phead{padding:6px 0 14px}
+.phead h2{margin:0;font-size:22px;font-weight:680;letter-spacing:-.02em}
+.phead p{margin:2px 0 0;font-size:12.5px;color:var(--ph-ink-2)}
+
+.pcard{
+  background:var(--ph-card);border:1px solid var(--ph-line);
+  border-radius:14px;padding:14px;margin-bottom:11px;
+}
+.pcard h4{margin:0 0 3px;font-size:13.5px;font-weight:640}
+.pcard p{margin:0;font-size:12.5px;color:var(--ph-ink-2)}
+.plabel{
+  font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ph-ink-2);margin:16px 0 8px;
+}
+.pbtn{
+  width:100%;padding:12px;border-radius:11px;font-size:13.5px;font-weight:620;
+  background:var(--accent);color:var(--accent-ink);
+  transition:filter .15s;
+}
+.pbtn:hover{filter:brightness(1.08)}
+.pbtn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.pbtn.ghost:hover{background:var(--accent-soft);filter:none}
+.pbtn.sm{padding:9px;font-size:12.5px}
+.pfld{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+.pfld label{font-family:var(--mono);font-size:9.5px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ph-ink-2)}
+.pfld input,.pfld select{
+  background:var(--ph-bg);border:1px solid var(--ph-line);border-radius:9px;
+  padding:10px 12px;font-size:13.5px;color:var(--ph-ink);
+}
+.pfld input:focus,.pfld select:focus{border-color:var(--accent);outline:none}
+
+/* Navegación inferior */
+.pnav{
+  display:flex;flex-shrink:0;border-top:1px solid var(--ph-line);
+  background:var(--ph-nav);backdrop-filter:blur(10px);
+  padding:7px 6px 11px;
+}
+.pnav button{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:4px 0;color:var(--ph-ink-2);position:relative;
+}
+.pnav button svg{width:20px;height:20px;stroke-width:1.7}
+.pnav button span{font-size:9.5px;font-weight:600}
+.pnav button.on{color:var(--accent)}
+.pnav button .dot{
+  position:absolute;top:2px;right:calc(50% - 15px);
+  min-width:15px;height:15px;padding:0 4px;border-radius:100px;
+  background:var(--bad);color:#fff;
+  font-family:var(--mono);font-size:9.5px;font-weight:700;line-height:15px;
+}
+
+/* QR */
+.qrwrap{
+  background:var(--ph-card);border:1px solid var(--ph-line);border-radius:14px;
+  padding:16px;text-align:center;margin-bottom:11px;
+}
+.qrwrap canvas{
+  width:172px;height:172px;image-rendering:pixelated;
+  border-radius:8px;background:#fff;padding:9px;
+}
+.qrwrap .vname{font-size:15.5px;font-weight:650;margin-top:11px}
+.qrwrap .vexp{font-family:var(--mono);font-size:11.5px;color:var(--warn);margin-top:3px}
+.qrwrap .vtok{
+  font-family:var(--mono);font-size:9.5px;color:var(--ph-ink-2);
+  margin-top:9px;word-break:break-all;line-height:1.4;
+  padding:7px 9px;background:var(--ph-bg);border-radius:7px;
+}
+
+/* Código de retiro */
+.code{
+  font-family:var(--mono);font-size:27px;font-weight:700;letter-spacing:.14em;
+  color:var(--accent);
+}
+
+/* Notificaciones push del teléfono */
+.pushzone{
+  position:absolute;top:8px;left:8px;right:8px;z-index:30;
+  display:flex;flex-direction:column;gap:7px;pointer-events:none;
+}
+.push{
+  background:color-mix(in srgb,var(--ph-card) 96%,transparent);
+  border:1px solid var(--ph-line);border-radius:14px;padding:11px 13px;
+  box-shadow:0 10px 30px -8px #00000047;
+  animation:slidein .32s cubic-bezier(.16,1,.3,1);
+  display:flex;gap:10px;align-items:flex-start;
+}
+@keyframes slidein{from{opacity:0;transform:translateY(-16px)}}
+.push.out{animation:slideout .28s ease-in forwards}
+@keyframes slideout{to{opacity:0;transform:translateY(-16px)}}
+.push .ic{
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;display:grid;place-items:center;
+  background:var(--accent-soft);color:var(--accent);
+}
+.push .ic svg{width:15px;height:15px;stroke-width:2}
+.push b{display:block;font-size:12.5px;font-weight:640}
+.push small{font-size:11.5px;color:var(--ph-ink-2);display:block;line-height:1.35}
+
+/* ---------- Superposición de llamada entrante ---------- */
+.overlay{
+  position:absolute;inset:0;z-index:50;
+  display:none;flex-direction:column;
+  background:linear-gradient(170deg,#1E2A33,#0E151B);
+  color:#EAF0F4;padding:30px 22px 26px;
+  animation:fade .25s ease-out;
+}
+.overlay.show{display:flex}
+@keyframes fade{from{opacity:0}}
+.overlay .sys{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:#8899A6;text-align:center;
+}
+.overlay .from{text-align:center;margin-top:34px}
+.overlay .from .av{
+  width:88px;height:88px;border-radius:50%;margin:0 auto 18px;
+  display:grid;place-items:center;background:#2C3A45;
+  border:1px solid #3E4E5B;
+}
+.overlay .from .av svg{width:38px;height:38px;stroke-width:1.6;color:#9FB0BD}
+.overlay .from b{display:block;font-size:25px;font-weight:640;letter-spacing:-.02em}
+.overlay .from small{display:block;font-size:13px;color:#93A3B0;margin-top:5px}
+.overlay .mid{flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:13px}
+.overlay .acts{display:flex;justify-content:center;gap:34px}
+.ovbtn{display:flex;flex-direction:column;align-items:center;gap:8px}
+.ovbtn .circ{width:64px;height:64px;border-radius:50%;display:grid;place-items:center}
+.ovbtn .circ svg{width:26px;height:26px;stroke-width:2}
+.ovbtn.acc .circ{background:var(--ok);color:#fff}
+.ovbtn.rej .circ{background:var(--bad);color:#fff}
+.ovbtn span{font-size:11.5px;color:#A9B8C4;font-weight:550}
+.ovbtn.acc .circ{animation:jiggle 1.5s ease-in-out infinite}
+@keyframes jiggle{0%,70%,100%{transform:scale(1)}80%{transform:scale(1.09)}}
+
+/* Hoja de autorización */
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;z-index:45;
+  display:none;
+  background:var(--ph-card);border-top:1px solid var(--ph-line);
+  border-radius:20px 20px 30px 30px;padding:18px 18px 22px;
+  box-shadow:0 -14px 40px -10px #00000038;
+  animation:up .3s cubic-bezier(.16,1,.3,1);
+}
+.sheet.show{display:block}
+@keyframes up{from{transform:translateY(100%)}}
+.sheet .grab{width:36px;height:4px;border-radius:4px;background:var(--ph-line);
+  margin:0 auto 14px}
+.sheet .who{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+.sheet .who .av{
+  width:44px;height:44px;border-radius:11px;display:grid;place-items:center;
+  font-family:var(--mono);font-size:16px;font-weight:600;
+  background:var(--ph-bg);border:1px solid var(--ph-line);
+}
+.sheet .who b{display:block;font-size:15px;font-weight:650}
+.sheet .who small{font-size:12px;color:var(--ph-ink-2)}
+.sheet .cd{
+  font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--warn);
+  text-align:center;margin-bottom:12px;
+}
+.sheet .acts{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.sheet .acts button{padding:12px;border-radius:11px;font-size:13.5px;font-weight:620}
+.sheet .acts .yes{background:var(--ok);color:#fff}
+.sheet .acts .no{background:var(--bad-soft);color:var(--bad);
+  border:1px solid color-mix(in srgb,var(--bad) 40%,transparent)}
+
+/* ================================================================
+   MODAL DE ENTREGA
+   ================================================================ */
+.modal{
+  position:fixed;inset:0;z-index:100;display:none;
+  place-items:center;padding:20px;
+  background:#0a0f1499;backdrop-filter:blur(4px);
+}
+.modal.show{display:grid}
+.mbox{
+  background:var(--cs-bg);color:var(--cs-ink);
+  border:1px solid var(--cs-line-2);border-radius:16px;
+  width:100%;max-width:400px;padding:20px;
+  box-shadow:var(--shadow-lg);animation:drop .26s ease-out;
+}
+.mbox h3{margin:0 0 4px;font-size:16px;font-weight:650}
+.mbox .sub{font-size:12.5px;color:var(--cs-ink-2);margin:0 0 16px}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tabs button{
+  flex:1;padding:9px;border-radius:8px;font-size:12.5px;font-weight:600;
+  border:1px solid var(--cs-line-2);color:var(--cs-ink-3);
+}
+.tabs button.on{background:var(--accent-bright);color:#08191D;border-color:transparent}
+.codein{
+  width:100%;text-align:center;font-family:var(--mono);
+  font-size:29px;font-weight:700;letter-spacing:.26em;
+  padding:14px;border-radius:10px;
+  background:var(--cs-bg-2);border:1px solid var(--cs-line-2);color:var(--cs-ink);
+}
+.codein:focus{border-color:var(--accent-bright);outline:none}
+.sigpad{
+  width:100%;height:150px;border-radius:10px;cursor:crosshair;
+  background:#F7F9FA;border:1px solid var(--cs-line-2);touch-action:none;display:block;
+}
+.sighint{font-size:11.5px;color:var(--cs-ink-3);margin:7px 0 0;text-align:center}
+.merr{
+  font-size:12.5px;color:var(--bad);background:var(--bad-soft);
+  border:1px solid color-mix(in srgb,var(--bad) 40%,transparent);
+  border-radius:8px;padding:9px 11px;margin-top:12px;display:none;
+}
+.merr.show{display:block}
+.macts{display:flex;gap:9px;margin-top:16px}
+.macts .cbtn{flex:1;justify-content:center;text-align:center}
+
+/* ================================================================
+   BITÁCORA ENCADENADA
+   ================================================================ */
+.ledger{max-width:1420px;margin:0 auto;padding:0 22px 44px}
+.ledger-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:11px}
+.ledger-head h3{margin:0;font-size:14px;font-weight:650}
+.ledger-head p{margin:0;font-size:12.5px;color:var(--pg-ink-3);flex:1;min-width:200px}
+.lbox{
+  background:var(--pg-panel);border:1px solid var(--pg-line);border-radius:14px;
+  overflow:hidden;box-shadow:var(--shadow);
+}
+.lscroll{max-height:250px;overflow-y:auto}
+.lbox table{font-size:12.5px}
+.lbox thead th{
+  background:var(--pg-bg-2);color:var(--pg-ink-3);
+  border-bottom:1px solid var(--pg-line);position:sticky;top:0;z-index:2;
+}
+.lbox tbody td{border-bottom:1px solid var(--pg-line);color:var(--pg-ink-2)}
+.lbox tbody tr:hover{background:var(--pg-bg-2)}
+.lbox .empty{color:var(--pg-ink-3)}
+.chainbar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:11px 14px;border-top:1px solid var(--pg-line);background:var(--pg-bg-2);
+}
+.chainbar .res{font-size:12.5px;font-weight:550}
+.chainbar .res.ok{color:var(--ok)}
+.chainbar button{
+  padding:6px 13px;border-radius:100px;border:1px solid var(--pg-line-2);
+  font-size:12px;font-weight:600;color:var(--pg-ink-2);
+}
+.chainbar button:hover{background:var(--pg-panel);color:var(--pg-ink)}
+
+/* ================================================================
+   NOTAS
+   ================================================================ */
+.notes{max-width:1420px;margin:0 auto;padding:0 22px 60px}
+.ncols{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;
+  align-items:start;
+  margin-top:13px;
+}
+.note{
+  background:var(--pg-panel);border:1px solid var(--pg-line);border-radius:12px;
+  padding:15px 16px;
+}
+.note h4{margin:0 0 6px;font-size:13px;font-weight:650}
+.note p{margin:0;font-size:12.5px;color:var(--pg-ink-2);line-height:1.55}
+.note.flag{border-color:color-mix(in srgb,var(--signal) 50%,transparent);
+  background:var(--signal-soft)}
+.note.flag h4{color:var(--warn)}
+
+/* Resalte del recorrido guiado */
+.spot{
+  animation:spot 1.5s ease-in-out infinite;
+  border-radius:9px;
+}
+@keyframes spot{
+  0%,100%{box-shadow:0 0 0 0 var(--accent-bright)}
+  50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--accent-bright) 45%,transparent)}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+    transition-duration:.01ms !important}
+}
+
+/* ================================================================
+   RESPONSIVO
+   ================================================================ */
+@media (max-width:1080px){
+  .stage{grid-template-columns:minmax(0,1fr);max-width:760px}
+  .phonewrap{position:static;align-items:center}
+  .phone{width:340px}
+  .devcap{width:340px}
+}
+@media (max-width:620px){
+  .stage,.ledger,.notes{padding-left:14px;padding-right:14px}
+  .console{grid-template-columns:60px minmax(0,1fr);height:600px}
+  .cnav button{width:48px}
+  .cnav button span{display:none}
+  .chead .clock{display:none}
+  .phone{width:100%;max-width:340px}
+  .devcap{width:auto}
+  .demobar{padding:10px 14px;gap:10px}
+  .brand{width:100%}
+}
+@media (max-width:480px){
+  .chead .who{display:none}
+  .chead{padding:11px 14px}
+}
+</style>
+
+<div class="demobar">
+  <div class="brand">
+    <b>Citofonía Comunidad</b>
+    <span>Prototipo navegable</span>
+  </div>
+  <span class="sim"><i></i>Datos simulados · sin servidor</span>
+  <button class="dbtn primary" id="tourBtn">Recorrido guiado</button>
+  <button class="dbtn" id="resetBtn">Reiniciar</button>
+</div>
+
+<div class="tourbar" id="tourBar">
+  <span class="step" id="tourStep">1 / 6</span>
+  <p id="tourText"></p>
+  <button id="tourSkip">Salir del recorrido</button>
+</div>
+
+<div class="stage">
+
+  <!-- ============ CONSOLA DE CONSERJERÍA ============ -->
+  <div class="devwrap">
+    <div class="devcap"><i></i><span>Consola de conserjería · tablet en portería</span></div>
+    <div class="tablet">
+      <div class="console">
+        <nav class="cnav">
+          <div class="logo">CC</div>
+          <button data-cview="citofonia" class="on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 5a2 2 0 0 1 2-2h1.6a1 1 0 0 1 .97.76l.86 3.4a1 1 0 0 1-.5 1.1l-1.5.85a11.5 11.5 0 0 0 5.46 5.46l.85-1.5a1 1 0 0 1 1.1-.5l3.4.86a1 1 0 0 1 .76.97V16a2 2 0 0 1-2 2h-1C9.6 18 4 12.4 4 5.5z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Citofonía</span>
+          </button>
+          <button data-cview="visitas">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M18 8h4M20 6v4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Visitas</span>
+          </button>
+          <button data-cview="encomiendas">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 8.5v7a1.5 1.5 0 0 1-.8 1.33l-6.5 3.4a1.5 1.5 0 0 1-1.4 0l-6.5-3.4A1.5 1.5 0 0 1 4 15.5v-7a1.5 1.5 0 0 1 .8-1.33l6.5-3.4a1.5 1.5 0 0 1 1.4 0l6.5 3.4A1.5 1.5 0 0 1 20 8.5M4.3 7.7 12 12l7.7-4.3M12 12v8.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Paquetes</span>
+            <span class="badge" id="pkgBadge" hidden>0</span>
+          </button>
+          <button data-cview="bitacora">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Bitácora</span>
+          </button>
+        </nav>
+
+        <div class="cbody">
+          <header class="chead">
+            <div class="bld">
+              <b>Edificio Mirador del Parque</b>
+              <small>Torre A · 48 unidades</small>
+            </div>
+            <div class="who">
+              <b>Luis Fuentes</b>
+              <small>Conserje · turno noche</small>
+            </div>
+            <div class="clock num" id="clock">23:14</div>
+          </header>
+          <div class="cview" id="cview"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TELÉFONO DEL RESIDENTE ============ -->
+  <div class="devwrap phonewrap">
+    <div class="devcap"><i></i><span>App residente · Camila Rojas, depto 1203</span></div>
+    <div class="phone">
+      <div class="pscreen">
+        <div class="pushzone" id="pushzone"></div>
+
+        <div class="pstatus">
+          <span class="num" id="pclock">23:14</span>
+          <span class="dnd">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M8 12h8" stroke-linecap="round"/></svg>
+            No molestar
+          </span>
+        </div>
+
+        <div class="pbody" id="pbody"></div>
+
+        <nav class="pnav">
+          <button data-pview="inicio" class="on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 10.5 12 4l8 6.5V20h-5v-6H9v6H4z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Inicio</span>
+          </button>
+          <button data-pview="visitas">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Visitas</span>
+          </button>
+          <button data-pview="paquetes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 8.5v7a1.5 1.5 0 0 1-.8 1.33l-6.5 3.4a1.5 1.5 0 0 1-1.4 0l-6.5-3.4A1.5 1.5 0 0 1 4 15.5v-7a1.5 1.5 0 0 1 .8-1.33l6.5-3.4a1.5 1.5 0 0 1 1.4 0l6.5 3.4A1.5 1.5 0 0 1 20 8.5M4.3 7.7 12 12l7.7-4.3M12 12v8.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Paquetes</span>
+            <span class="dot" id="phoneDot" hidden>0</span>
+          </button>
+        </nav>
+
+        <!-- Llamada entrante estilo sistema -->
+        <div class="overlay" id="callOverlay">
+          <div class="sys" id="ovSys">Citofonía · llamada entrante</div>
+          <div class="from">
+            <div class="av">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20v-1a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v1M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <b>Conserjería</b>
+            <small>Edificio Mirador del Parque</small>
+          </div>
+          <div class="mid" id="ovMid"></div>
+          <div class="acts" id="ovActs"></div>
+        </div>
+
+        <!-- Hoja de autorización de ingreso -->
+        <div class="sheet" id="authSheet"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ BITÁCORA ENCADENADA ============ -->
+<section class="ledger">
+  <div class="ledger-head">
+    <h3>Bitácora de auditoría</h3>
+    <p>Cada acción que hagas arriba escribe una entrada encadenada por hash. Alterar o borrar una rompe la cadena de todas las siguientes.</p>
+  </div>
+  <div class="lbox">
+    <div class="lscroll">
+      <table>
+        <thead>
+          <tr><th>Seq</th><th>Hora</th><th>Acción</th><th>Actor</th><th>Entidad</th><th>Hash</th></tr>
+        </thead>
+        <tbody id="ledgerBody"></tbody>
+      </table>
+    </div>
+    <div class="chainbar">
+      <button id="verifyBtn">Verificar integridad de la cadena</button>
+      <span class="res" id="verifyRes"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ NOTAS ============ -->
+<section class="notes">
+  <div class="ledger-head">
+    <h3>Qué es real y qué está simulado</h3>
+  </div>
+  <div class="ncols">
+    <div class="note">
+      <h4>Los flujos son los definitivos</h4>
+      <p>Las pantallas, los estados y el orden de los pasos corresponden al diseño documentado. Sirven para validar con conserjes y residentes antes de escribir el backend.</p>
+    </div>
+    <div class="note">
+      <h4>No hay servidor ni base de datos</h4>
+      <p>Todo vive en la memoria del navegador. Al recargar la página se pierde. El esquema PostgreSQL y el contrato de API existen y están verificados, pero aún nadie los conecta.</p>
+    </div>
+    <div class="note">
+      <h4>El QR es un dibujo</h4>
+      <p>La matriz se genera a partir del token para que se vea real, pero no es un código escaneable ni está firmado con Ed25519. El botón «Escanear» simula la lectura.</p>
+    </div>
+    <div class="note">
+      <h4>Las reglas sí se respetan</h4>
+      <p>No se puede entregar un paquete sin firma o sin código correcto, ni canjear un pase vencido: son las mismas restricciones que la base de datos impone de verdad.</p>
+    </div>
+    <div class="note flag">
+      <h4>La derivación telefónica no va cifrada</h4>
+      <p>Llama a un depto sin app (708 o 1502) y verás el aviso. Cuando la llamada cae a la red telefónica el audio pasa por el operador: no hay cifrado de extremo a extremo posible en ese tramo, y el prototipo lo declara igual que lo hará el producto.</p>
+    </div>
+    <div class="note">
+      <h4>La consola está siempre oscura</h4>
+      <p>No es un descuido del tema: la portería opera de noche en un hall iluminado y una pantalla clara deslumbra. El teléfono sí sigue el tema claro u oscuro de tu sistema.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+"use strict";
+
+/* ==================================================================
+   DATOS
+   ================================================================== */
+var UNITS=[
+  {u:"302", name:"Familia Aravena", app:true},
+  {u:"405", name:"P. Muñoz",        app:true},
+  {u:"708", name:"Familia Cárdenas",app:false},
+  {u:"812", name:"R. Silva",        app:true},
+  {u:"1004",name:"Familia Pinto",   app:true},
+  {u:"1203",name:"C. Rojas",        app:true, me:true},
+  {u:"1401",name:"M. Bustos",       app:true},
+  {u:"1502",name:"Familia Vergara", app:false}
+];
+var CARRIERS=["Chilexpress","Starken","Blue Express","Correos de Chile","Mercado Libre"];
+var ME="1203", ME_NAME="Camila Rojas";
+
+var S={
+  cview:"citofonia", pview:"inicio",
+  clock:23*60+14,
+  call:null,            // {unit,state,secs,pstn}
+  passes:[],            // pases emitidos por la residente
+  packages:[],
+  visits:[],
+  request:null,         // solicitud de autorización pendiente
+  scan:null,            // último resultado de escaneo
+  pkgFilter:"pend",
+  ledger:[], seq:0, lastHash:null,
+  deliver:null,         // {id,tab,drawn}
+  tour:-1
+};
+
+/* ==================================================================
+   UTILIDADES
+   ================================================================== */
+function el(id){return document.getElementById(id);}
+function esc(s){
+  return String(s).replace(/[&<>"']/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+function hhmm(m){
+  m=((m%1440)+1440)%1440;
+  return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+}
+function mmss(s){
+  return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
+}
+function uid(){return Math.random().toString(36).slice(2,10);}
+function initials(name){
+  var p=String(name).trim().split(/\s+/).filter(function(x){return x.length>1;});
+  if(!p.length) return "?";
+  return (p[0][0]+(p.length>1?p[p.length-1][0]:"")).toUpperCase();
+}
+function unitOf(u){
+  for(var i=0;i<UNITS.length;i++) if(UNITS[i].u===u) return UNITS[i];
+  return null;
+}
+
+/* Hash de 64 hex para la cadena de auditoría.
+   No es SHA-256: es una función simple encadenada, suficiente para que la
+   verificación del prototipo sea genuina (recalcula y compara de verdad). */
+function h64(str){
+  var out="", h1=0x811c9dc5, h2=0x01000193, i, c;
+  for(i=0;i<str.length;i++){
+    c=str.charCodeAt(i);
+    h1=(h1^c)*16777619>>>0;
+    h2=(h2+c*2654435761+((h2<<5)>>>0))>>>0;
+  }
+  for(i=0;i<8;i++){
+    h1=(h1*16777619+0x9e3779b9)>>>0;
+    h2=(h2^(h1>>>7))*2246822519>>>0;
+    out+=((h1^h2)>>>0).toString(16).padStart(8,"0");
+  }
+  return out.slice(0,64);
+}
+function entryHash(e){
+  return h64((e.prev||"")+"|"+e.seq+"|"+e.action+"|"+e.actor+"|"+(e.entity||"")+"|"+e.at);
+}
+function audit(action,actor,entity){
+  S.seq++;
+  var e={seq:S.seq,at:hhmm(S.clock),action:action,actor:actor,entity:entity||"",prev:S.lastHash};
+  e.hash=entryHash(e);
+  S.lastHash=e.hash;
+  S.ledger.unshift(e);
+  renderLedger();
+  el("verifyRes").textContent="";
+  el("verifyRes").className="res";
+}
+
+/* ==================================================================
+   ICONOS
+   ================================================================== */
+var I={
+  lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 11h12v9H6zM9 11V8a3 3 0 0 1 6 0v3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  unlock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 11h12v9H6zM9 11V8a3 3 0 0 1 5.6-1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  phone:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 5a2 2 0 0 1 2-2h1.6a1 1 0 0 1 .97.76l.86 3.4a1 1 0 0 1-.5 1.1l-1.5.85a11.5 11.5 0 0 0 5.46 5.46l.85-1.5a1 1 0 0 1 1.1-.5l3.4.86a1 1 0 0 1 .76.97V16a2 2 0 0 1-2 2h-1C9.6 18 4 12.4 4 5.5z" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  hang:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 5a2 2 0 0 1 2-2h1.6a1 1 0 0 1 .97.76l.86 3.4a1 1 0 0 1-.5 1.1l-1.5.85a11.5 11.5 0 0 0 5.46 5.46l.85-1.5a1 1 0 0 1 1.1-.5l3.4.86a1 1 0 0 1 .76.97V16a2 2 0 0 1-2 2h-1C9.6 18 4 12.4 4 5.5z" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 21 21 3" stroke-linecap="round"/></svg>',
+  box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 8.5v7a1.5 1.5 0 0 1-.8 1.33l-6.5 3.4a1.5 1.5 0 0 1-1.4 0l-6.5-3.4A1.5 1.5 0 0 1 4 15.5v-7a1.5 1.5 0 0 1 .8-1.33l6.5-3.4a1.5 1.5 0 0 1 1.4 0l6.5 3.4A1.5 1.5 0 0 1 20 8.5M4.3 7.7 12 12l7.7-4.3M12 12v8.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20v-1a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v1M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  qr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+
+/* ==================================================================
+   NOTIFICACIONES PUSH DEL TELÉFONO
+   ================================================================== */
+function push(title,body,icon){
+  var z=el("pushzone");
+  // Como en un teléfono real, los avisos no se apilan sin límite:
+  // más de dos taparían por completo la pantalla que hay debajo.
+  while(z.children.length>=2) z.removeChild(z.firstChild);
+  var d=document.createElement("div");
+  d.className="push";
+  d.innerHTML='<span class="ic">'+(icon||I.box)+'</span><span><b>'+esc(title)+
+              '</b><small>'+esc(body)+'</small></span>';
+  z.appendChild(d);
+  setTimeout(function(){
+    d.className="push out";
+    setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); },300);
+  },3400);
+}
+
+/* ==================================================================
+   CITOFONÍA
+   ================================================================== */
+var callTimer=null;
+
+function startCall(u){
+  if(S.call) return;
+  var unit=unitOf(u);
+  S.call={unit:u,state:"ringing",secs:0,pstn:false,elapsed:0};
+  audit("CALL.START","Conserje Fuentes","depto "+u);
+  renderConsole();
+
+  if(unit.me){
+    showIncoming();
+  }
+  clearInterval(callTimer);
+  callTimer=setInterval(tickCall,1000);
+  advanceTour("call.start");
+}
+
+function tickCall(){
+  var c=S.call; if(!c) return;
+  c.elapsed++;
+  if(c.state==="answered"){ c.secs++; }
+
+  // Sin app instalada: derivación a red telefónica a los 4 s
+  var unit=unitOf(c.unit);
+  if(c.state==="ringing" && !unit.app && c.elapsed>=4){
+    c.state="pstn"; c.pstn=true; c.secs=0;
+    audit("CALL.PSTN_FALLBACK","Sistema","depto "+c.unit);
+  }
+  // Con app pero sin respuesta: derivación a los 12 s
+  else if(c.state==="ringing" && unit.app && c.elapsed>=12){
+    c.state="pstn"; c.pstn=true; c.secs=0;
+    audit("CALL.PSTN_FALLBACK","Sistema","depto "+c.unit);
+    hideIncoming();
+  }
+  else if(c.state==="pstn"){ c.secs++; }
+
+  if(S.cview==="citofonia") renderConsole();
+  if(c.state==="answered" || c.state==="pstn") renderIncoming();
+}
+
+function answerCall(){
+  if(!S.call) return;
+  S.call.state="answered"; S.call.secs=0;
+  audit("CALL.ANSWER",ME_NAME,"depto "+S.call.unit);
+  renderConsole(); renderIncoming();
+  advanceTour("call.answer");
+}
+
+function rejectCall(){
+  if(!S.call) return;
+  audit("CALL.REJECT",ME_NAME,"depto "+S.call.unit);
+  endCall(true);
+}
+
+function endCall(silent){
+  if(!S.call) return;
+  if(!silent) audit("CALL.END","Conserje Fuentes","depto "+S.call.unit);
+  clearInterval(callTimer); callTimer=null;
+  S.call=null;
+  hideIncoming();
+  renderConsole();
+  advanceTour("call.end");
+}
+
+function showIncoming(){ el("callOverlay").classList.add("show"); renderIncoming(); }
+function hideIncoming(){ el("callOverlay").classList.remove("show"); }
+
+function renderIncoming(){
+  var c=S.call; if(!c) return;
+  var mid=el("ovMid"), acts=el("ovActs"), sys=el("ovSys");
+
+  if(c.state==="ringing"){
+    sys.textContent="Citofonía · llamada entrante";
+    mid.innerHTML='<span class="chip e2e">'+I.lock+' Se cifrará extremo a extremo</span>'+
+      '<p style="margin:0;font-size:11.5px;color:#8899A6;text-align:center;max-width:230px">'+
+      'Suena sobre No molestar porque el sistema la trata como llamada telefónica real.</p>';
+    acts.innerHTML=
+      '<button class="ovbtn rej" data-act="reject"><span class="circ">'+I.hang+'</span><span>Rechazar</span></button>'+
+      '<button class="ovbtn acc" data-act="answer"><span class="circ">'+I.phone+'</span><span>Aceptar</span></button>';
+  }else if(c.state==="answered"){
+    sys.textContent="Citofonía · en curso";
+    mid.innerHTML='<div class="timer" style="font-size:30px">'+mmss(c.secs)+'</div>'+
+      '<span class="chip e2e">'+I.lock+' Cifrado extremo a extremo</span>';
+    acts.innerHTML='<button class="ovbtn rej" data-act="hangup"><span class="circ">'+I.hang+
+      '</span><span>Colgar</span></button>';
+  }
+}
+
+/* ==================================================================
+   PASES QR
+   ================================================================== */
+function createPass(name,hours){
+  var p={
+    id:uid(), name:name, hours:hours,
+    remaining:hours*3600, used:false, revoked:false,
+    token:"CV1."+btoa(name+"|"+ME+"|"+Date.now()).replace(/=+$/,"").slice(0,34)+"."+uid()+uid()
+  };
+  S.passes.unshift(p);
+  audit("VISITOR_PASS.CREATE",ME_NAME,"pase "+p.id);
+  renderPhone();
+  advanceTour("pass.create");
+}
+
+function activePass(){
+  for(var i=0;i<S.passes.length;i++){
+    var p=S.passes[i];
+    if(!p.used && !p.revoked && p.remaining>0) return p;
+  }
+  return null;
+}
+
+function drawQR(canvas,seed){
+  var N=25, px=8, ctx=canvas.getContext("2d");
+  canvas.width=N*px; canvas.height=N*px;
+  ctx.fillStyle="#fff"; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#0F1620";
+
+  var h=0;
+  for(var k=0;k<seed.length;k++) h=(h*31+seed.charCodeAt(k))>>>0;
+  function rnd(){ h=(h*1103515245+12345)>>>0; return (h>>>16)/65536; }
+
+  var grid=[], y, x;
+  for(y=0;y<N;y++){ grid[y]=[]; for(x=0;x<N;x++) grid[y][x]=0; }
+
+  // Patrones de localización 7x7
+  function finder(ox,oy){
+    for(var yy=0;yy<7;yy++) for(var xx=0;xx<7;xx++){
+      var edge=(yy===0||yy===6||xx===0||xx===6);
+      var core=(yy>=2&&yy<=4&&xx>=2&&xx<=4);
+      grid[oy+yy][ox+xx]=(edge||core)?1:0;
+    }
+  }
+  finder(0,0); finder(N-7,0); finder(0,N-7);
+  // Patrón de temporización
+  for(x=8;x<N-8;x++){ grid[6][x]=x%2?0:1; grid[x][6]=x%2?0:1; }
+  // Datos
+  for(y=0;y<N;y++) for(x=0;x<N;x++){
+    var inF=(y<8&&x<8)||(y<8&&x>=N-8)||(y>=N-8&&x<8);
+    if(inF||y===6||x===6) continue;
+    grid[y][x]=rnd()>0.52?1:0;
+  }
+  // Alineación 5x5
+  for(y=0;y<5;y++) for(x=0;x<5;x++){
+    var e=(y===0||y===4||x===0||x===4), c=(y===2&&x===2);
+    grid[N-9+y][N-9+x]=(e||c)?1:0;
+  }
+  for(y=0;y<N;y++) for(x=0;x<N;x++) if(grid[y][x]) ctx.fillRect(x*px,y*px,px,px);
+}
+
+function scanPass(){
+  var p=activePass(), res;
+  if(!p){
+    var stale=S.passes[0];
+    if(stale && stale.used)        res={ok:false,reason:"Ya utilizado",name:stale.name};
+    else if(stale && stale.revoked)res={ok:false,reason:"Revocado por el residente",name:stale.name};
+    else if(stale)                 res={ok:false,reason:"Expirado",name:stale.name};
+    else                           res={ok:false,reason:"Sin pase que leer",name:"—"};
+    audit("PASS.VALIDATE_FAIL","Conserje Fuentes",res.reason);
+  }else{
+    p.used=true;
+    res={ok:true,name:p.name,unit:ME,until:hhmm(S.clock+Math.round(p.remaining/60))};
+    S.visits.unshift({
+      id:uid(), at:hhmm(S.clock), name:p.name, unit:ME,
+      method:"QR", auth:ME_NAME, out:null
+    });
+    audit("PASS.VALIDATE","Conserje Fuentes","pase "+p.id);
+    audit("VISIT.CREATE","Conserje Fuentes","visita de "+p.name);
+    push("Visita autorizada ingresó","Toca para ver el detalle en la app.",I.user);
+  }
+  S.scan=res;
+  renderConsole(); renderPhone();
+  advanceTour("pass.scan");
+}
+
+/* ==================================================================
+   SOLICITUD DE AUTORIZACIÓN REMOTA
+   ================================================================== */
+var reqTimer=null;
+
+function askAuth(name,unit){
+  if(S.request) return;
+  S.request={id:uid(),name:name,unit:unit,left:60,status:"pend"};
+  audit("ACCESS_REQUEST.CREATE","Conserje Fuentes",name);
+  if(unit===ME){
+    renderSheet();
+    el("authSheet").classList.add("show");
+    push("Conserjería solicita autorización","Toca para responder.",I.user);
+  }
+  clearInterval(reqTimer);
+  reqTimer=setInterval(function(){
+    if(!S.request) return;
+    S.request.left--;
+    if(S.request.left<=0){
+      S.request.status="exp";
+      audit("ACCESS_REQUEST.EXPIRE","Sistema",S.request.name);
+      closeReq();
+    }else{
+      renderSheet();
+      if(S.cview==="visitas") renderConsole();
+    }
+  },1000);
+  renderConsole();
+  advanceTour("auth.ask");
+}
+
+function answerAuth(yes){
+  if(!S.request) return;
+  var r=S.request;
+  r.status=yes?"ok":"no";
+  audit("ACCESS_REQUEST.RESPOND",ME_NAME,(yes?"aprobó ":"rechazó ")+r.name);
+  if(yes){
+    S.visits.unshift({
+      id:uid(), at:hhmm(S.clock), name:r.name, unit:r.unit,
+      method:"Aprobación remota", auth:ME_NAME, out:null
+    });
+    audit("VISIT.CREATE","Conserje Fuentes","visita de "+r.name);
+  }
+  S.scan={ok:yes,name:r.name,unit:r.unit,
+          reason:yes?null:"El residente rechazó el ingreso",
+          until:yes?hhmm(S.clock+120):null, remote:true};
+  closeReq();
+  advanceTour("auth.answer");
+}
+
+function closeReq(){
+  clearInterval(reqTimer); reqTimer=null;
+  S.request=null;
+  el("authSheet").classList.remove("show");
+  renderConsole(); renderPhone();
+}
+
+function renderSheet(){
+  var r=S.request; if(!r) return;
+  el("authSheet").innerHTML=
+    '<div class="grab"></div>'+
+    '<div class="who"><span class="av">'+esc(initials(r.name))+'</span>'+
+    '<span><b>'+esc(r.name)+'</b><small>Conserjería pide autorizar el ingreso</small></span></div>'+
+    '<div class="cd">Expira en '+mmss(r.left)+'</div>'+
+    '<div class="acts"><button class="no" data-act="auth-no">Rechazar</button>'+
+    '<button class="yes" data-act="auth-yes">Autorizar</button></div>';
+}
+
+/* ==================================================================
+   ENCOMIENDAS
+   ================================================================== */
+function addPackage(unit,carrier,tracking,photo){
+  var code=String(Math.floor(100000+Math.random()*900000));
+  var p={
+    id:uid(), unit:unit, carrier:carrier, tracking:tracking,
+    photo:!!photo, code:code, status:"pend",
+    at:hhmm(S.clock), out:null, method:null
+  };
+  S.packages.unshift(p);
+  audit("PACKAGE.CREATE","Conserje Fuentes",carrier+" → depto "+unit);
+  if(unit===ME){
+    push("Encomienda recibida en conserjería","Toca para ver el detalle y tu código de retiro.",I.box);
+  }
+  renderConsole(); renderPhone();
+  advanceTour("pkg.create");
+}
+
+function openDeliver(id){
+  S.deliver={id:id,tab:"code",drawn:false};
+  renderModal();
+  el("delModal").classList.add("show");
+  var f=el("codeInput"); if(f) f.focus();
+}
+
+function closeDeliver(){
+  S.deliver=null;
+  el("delModal").classList.remove("show");
+}
+
+function confirmDeliver(){
+  var d=S.deliver; if(!d) return;
+  var pkg=null,i;
+  for(i=0;i<S.packages.length;i++) if(S.packages[i].id===d.id) pkg=S.packages[i];
+  if(!pkg) return;
+  var err=el("delErr");
+
+  if(d.tab==="code"){
+    var v=(el("codeInput").value||"").trim();
+    if(v!==pkg.code){
+      // Mismo rechazo que impone la restricción de la base de datos.
+      err.textContent=v.length!==6
+        ? "El código de retiro tiene 6 dígitos. Pídeselo al residente en su app."
+        : "El código no corresponde a esta encomienda. Quedan intentos limitados.";
+      err.classList.add("show");
+      return;
+    }
+    pkg.method="Código de retiro";
+  }else{
+    if(!d.drawn){
+      err.textContent="Falta la firma. Sin firma capturada la entrega no puede registrarse.";
+      err.classList.add("show");
+      return;
+    }
+    pkg.method="Firma digital";
+  }
+
+  pkg.status="done"; pkg.out=hhmm(S.clock);
+  audit("PACKAGE.DELIVER","Conserje Fuentes",pkg.carrier+" · "+pkg.method);
+  if(pkg.unit===ME) push("Encomienda entregada","Queda registrada con "+pkg.method.toLowerCase()+".",I.box);
+  closeDeliver();
+  renderConsole(); renderPhone();
+  advanceTour("pkg.deliver");
+}
+
+function renderModal(){
+  var d=S.deliver; if(!d) return;
+  var pkg=null,i;
+  for(i=0;i<S.packages.length;i++) if(S.packages[i].id===d.id) pkg=S.packages[i];
+  if(!pkg) return;
+
+  el("delTitle").textContent="Entregar encomienda";
+  el("delSub").textContent=pkg.carrier+" · depto "+pkg.unit+" · recibida "+pkg.at;
+  el("tabCode").className=d.tab==="code"?"on":"";
+  el("tabSig").className=d.tab==="sig"?"on":"";
+  el("delErr").classList.remove("show");
+
+  var box=el("delBody");
+  if(d.tab==="code"){
+    box.innerHTML='<input class="codein num" id="codeInput" inputmode="numeric" maxlength="6" '+
+      'placeholder="000000" aria-label="Código de retiro">'+
+      '<p class="sighint">El residente lo ve en su app, en la ficha de la encomienda.</p>';
+  }else{
+    box.innerHTML='<canvas class="sigpad" id="sigPad" aria-label="Área de firma"></canvas>'+
+      '<p class="sighint">Firma con el mouse o el dedo. <button id="sigClear" '+
+      'style="color:var(--accent-bright);font-weight:600;text-decoration:underline">Borrar</button></p>';
+    setupSig();
+  }
+}
+
+function setupSig(){
+  var cv=el("sigPad"); if(!cv) return;
+  var r=cv.getBoundingClientRect();
+  cv.width=r.width*2; cv.height=r.height*2;
+  var ctx=cv.getContext("2d");
+  ctx.scale(2,2); ctx.strokeStyle="#16202B"; ctx.lineWidth=2;
+  ctx.lineCap="round"; ctx.lineJoin="round";
+  var drawing=false;
+
+  function pos(e){
+    var b=cv.getBoundingClientRect();
+    var t=e.touches?e.touches[0]:e;
+    return {x:t.clientX-b.left,y:t.clientY-b.top};
+  }
+  function down(e){ e.preventDefault(); drawing=true; var p=pos(e);
+    ctx.beginPath(); ctx.moveTo(p.x,p.y); }
+  function move(e){ if(!drawing) return; e.preventDefault(); var p=pos(e);
+    ctx.lineTo(p.x,p.y); ctx.stroke();
+    if(S.deliver){ S.deliver.drawn=true; el("delErr").classList.remove("show"); } }
+  function up(){ drawing=false; }
+
+  cv.addEventListener("mousedown",down); cv.addEventListener("mousemove",move);
+  window.addEventListener("mouseup",up);
+  cv.addEventListener("touchstart",down,{passive:false});
+  cv.addEventListener("touchmove",move,{passive:false});
+  cv.addEventListener("touchend",up);
+
+  var cl=el("sigClear");
+  if(cl) cl.addEventListener("click",function(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    if(S.deliver) S.deliver.drawn=false;
+  });
+}
+
+/* ==================================================================
+   RENDER · CONSOLA
+   ================================================================== */
+function renderConsole(){
+  var v=S.cview, h="";
+
+  if(v==="citofonia"){
+    h+='<div class="csec"><h3>Placa de citófono</h3>'+
+       '<span class="hint">El punto verde indica app conectada.<br>708 y 1502 sólo tienen teléfono.</span></div>';
+    h+='<div class="plate">';
+    UNITS.forEach(function(u){
+      var live=S.call && S.call.unit===u.u;
+      h+='<button class="ubtn'+(u.app?"":" nopush")+(live?" calling":"")+
+         '" data-call="'+u.u+'"'+(S.call?" disabled":"")+'>'+
+         '<span class="led"></span><b class="num">'+u.u+'</b><small>'+esc(u.name)+'</small></button>';
+    });
+    h+='</div>';
+
+    if(S.call){
+      var c=S.call, un=unitOf(c.unit);
+      var live=(c.state==="answered"||c.state==="pstn");
+      h+='<div class="callpanel'+(live?" live":"")+'">'+
+         '<span class="ring">'+I.phone+'</span><span class="meta">';
+      if(c.state==="ringing"){
+        h+='<b>Llamando al '+c.unit+'…</b><small>'+esc(un.name)+
+           (un.app?" · sonando en la app":" · sin app, se derivará al teléfono")+'</small>';
+      }else if(c.state==="answered"){
+        h+='<b>En conversación con '+c.unit+'</b><small>'+esc(un.name)+' · WebRTC punto a punto</small>';
+      }else{
+        h+='<b>Red telefónica · '+c.unit+'</b><small>'+esc(un.name)+' · derivada por el operador</small>';
+      }
+      h+='</span>';
+      if(live) h+='<span class="timer num">'+mmss(c.secs)+'</span>';
+      h+=c.state==="pstn"
+        ? '<span class="chip clear">'+I.unlock+' Línea no cifrada</span>'
+        : '<span class="chip e2e">'+I.lock+' Cifrado E2E · DTLS-SRTP</span>';
+      h+='<button class="cbtn danger" data-act="endcall">Colgar</button></div>';
+      if(c.state==="pstn"){
+        h+='<p style="margin:11px 0 0;font-size:12px;color:var(--cs-ink-2);line-height:1.55">'+
+           'El audio se termina en el gateway del operador, así que en este tramo no hay cifrado '+
+           'de extremo a extremo posible. Ambas partes ven el aviso y queda registrado en la llamada.</p>';
+      }
+    }
+  }
+
+  else if(v==="visitas"){
+    if(S.scan){
+      var r=S.scan;
+      h+='<div class="scanres '+(r.ok?"ok":"bad")+'">'+
+         '<span class="av">'+esc(initials(r.name))+'</span><span class="txt">'+
+         '<span class="verdict">'+(r.ok?"Ingreso autorizado":"Ingreso rechazado")+'</span>'+
+         '<div class="name">'+esc(r.name)+'</div><div class="det">';
+      h+= r.ok
+        ? 'Depto '+esc(r.unit||ME)+' · '+(r.remote?"autorizado por el residente":"pase válido hasta "+esc(r.until||""))
+        : esc(r.reason||"Pase no válido");
+      h+='</div></span><button class="cbtn" data-act="clearscan">Cerrar</button></div>';
+    }
+
+    h+='<div class="csec"><h3>Validar pase QR</h3>'+
+       '<span class="hint">Simula la cámara leyendo el QR<br>que la residente tiene en pantalla.</span></div>';
+    var ap=activePass();
+    h+='<div class="scanbox"><p>'+
+       (ap?"Pase activo detectado: <b>"+esc(ap.name)+"</b>"
+          :"La residente no tiene ningún pase vigente ahora mismo.")+
+       '</p><button class="cbtn acc big" data-act="scan">Escanear QR</button></div>';
+
+    h+='<div class="csec" style="margin-top:20px"><h3>Solicitar autorización al departamento</h3></div>';
+    if(S.request){
+      h+='<div class="callpanel live"><span class="ring">'+I.user+'</span>'+
+         '<span class="meta"><b>Esperando al depto '+esc(S.request.unit)+'</b>'+
+         '<small>'+esc(S.request.name)+' · notificación enviada</small></span>'+
+         '<span class="timer num">'+mmss(S.request.left)+'</span>'+
+         '<span class="chip wait">Pendiente</span></div>';
+    }else{
+      h+='<div class="cform"><div class="frow">'+
+         '<div class="fld"><label for="reqName">Nombre del visitante</label>'+
+         '<input id="reqName" placeholder="Ej: Rodrigo Peña" maxlength="60"></div>'+
+         '<div class="fld"><label for="reqUnit">Departamento</label><select id="reqUnit">';
+      UNITS.forEach(function(u){
+        h+='<option value="'+u.u+'"'+(u.me?" selected":"")+'>'+u.u+' · '+esc(u.name)+'</option>';
+      });
+      h+='</select></div></div>'+
+         '<button class="cbtn acc" data-act="askauth">Enviar solicitud</button></div>';
+    }
+
+    h+='<div class="csec" style="margin-top:20px"><h3>Bitácora de visitas</h3>'+
+       '<span class="hint">'+S.visits.length+' registro(s)</span></div>';
+    h+='<div class="tablewrap"><table><thead><tr><th>Hora</th><th>Visitante</th>'+
+       '<th>Depto</th><th>Método</th><th>Autorizó</th><th>Salida</th></tr></thead><tbody>';
+    if(!S.visits.length){
+      h+='<tr><td colspan="6" class="empty">Sin visitas registradas todavía. '+
+         'Valida un QR o pide una autorización remota.</td></tr>';
+    }else{
+      S.visits.forEach(function(x){
+        h+='<tr><td class="mono">'+esc(x.at)+'</td><td>'+esc(x.name)+'</td>'+
+           '<td class="mono">'+esc(x.unit)+'</td>'+
+           '<td><span class="pill info">'+esc(x.method)+'</span></td>'+
+           '<td>'+esc(x.auth)+'</td><td>'+
+           (x.out?'<span class="mono">'+esc(x.out)+'</span>'
+                 :'<button class="cbtn" style="padding:5px 10px;font-size:11.5px" data-exit="'+x.id+'">Marcar salida</button>')+
+           '</td></tr>';
+      });
+    }
+    h+='</tbody></table></div>';
+  }
+
+  else if(v==="encomiendas"){
+    h+='<div class="csec"><h3>Registrar encomienda</h3>'+
+       '<span class="hint">Objetivo de diseño:<br>menos de 20 segundos por paquete.</span></div>';
+    h+='<div class="cform"><div class="frow">'+
+       '<div class="fld"><label for="pkUnit">Departamento</label><select id="pkUnit">';
+    UNITS.forEach(function(u){
+      h+='<option value="'+u.u+'"'+(u.me?" selected":"")+'>'+u.u+' · '+esc(u.name)+'</option>';
+    });
+    h+='</select></div>'+
+       '<div class="fld"><label for="pkCarrier">Transportista</label><select id="pkCarrier">';
+    CARRIERS.forEach(function(c){ h+='<option>'+esc(c)+'</option>'; });
+    h+='</select></div>'+
+       '<div class="fld"><label for="pkTrack">Seguimiento (opcional)</label>'+
+       '<input id="pkTrack" placeholder="Ej: 77120493" maxlength="24"></div></div>'+
+       '<div class="frow"><button class="cbtn" data-act="photo" id="photoBtn">Tomar foto del paquete</button>'+
+       '<button class="cbtn acc" data-act="addpkg">Registrar y notificar</button></div></div>';
+
+    var pend=0;
+    S.packages.forEach(function(p){ if(p.status==="pend") pend++; });
+    h+='<div class="csec" style="margin-top:20px"><h3>Inventario</h3>'+
+       '<span class="hint">'+pend+' pendiente(s) de retiro</span></div>';
+    h+='<div class="filters">'+
+       '<button class="fchip'+(S.pkgFilter==="pend"?" on":"")+'" data-filter="pend">Pendientes</button>'+
+       '<button class="fchip'+(S.pkgFilter==="done"?" on":"")+'" data-filter="done">Entregadas</button>'+
+       '<button class="fchip'+(S.pkgFilter==="all"?" on":"")+'" data-filter="all">Todas</button></div>';
+
+    var list=S.packages.filter(function(p){
+      return S.pkgFilter==="all" || p.status===S.pkgFilter;
+    });
+    h+='<div class="tablewrap"><table><thead><tr><th>Recibida</th><th>Depto</th>'+
+       '<th>Transportista</th><th>Seguimiento</th><th>Estado</th><th></th></tr></thead><tbody>';
+    if(!list.length){
+      h+='<tr><td colspan="6" class="empty">Nada por aquí. Registra una encomienda arriba.</td></tr>';
+    }else{
+      list.forEach(function(p){
+        h+='<tr><td class="mono">'+esc(p.at)+'</td><td class="mono">'+esc(p.unit)+'</td>'+
+           '<td>'+esc(p.carrier)+(p.photo?' <span class="pill info">foto</span>':'')+'</td>'+
+           '<td class="mono">'+(p.tracking?esc(p.tracking):"—")+'</td><td>'+
+           (p.status==="pend"?'<span class="pill wait">Pendiente</span>'
+                             :'<span class="pill ok">Entregada</span>')+'</td><td>'+
+           (p.status==="pend"
+             ? '<button class="cbtn acc" style="padding:6px 12px;font-size:12px" data-deliver="'+p.id+'">Entregar</button>'
+             : '<span style="font-size:11.5px;color:var(--cs-ink-3)">'+esc(p.method)+' · '+esc(p.out)+'</span>')+
+           '</td></tr>';
+      });
+    }
+    h+='</tbody></table></div>';
+  }
+
+  else if(v==="bitacora"){
+    h+='<div class="csec"><h3>Actividad del turno</h3>'+
+       '<span class="hint">El conserje ve la operación,<br>no los logs de auditoría.</span></div>';
+    h+='<p style="margin:0 0 14px;font-size:12.5px;color:var(--cs-ink-2);line-height:1.55">'+
+       'Por mínimo privilegio, el rol Conserje no puede leer la auditoría ni exportar datos: '+
+       'así una cuenta de portería comprometida no borra sus huellas ni se lleva el padrón. '+
+       'La cadena completa está bajo el escenario, como la vería un administrador.</p>';
+    var rows=S.ledger.slice(0,14);
+    h+='<div class="tablewrap"><table><thead><tr><th>Hora</th><th>Acción</th><th>Detalle</th></tr></thead><tbody>';
+    if(!rows.length){
+      h+='<tr><td colspan="3" class="empty">Turno sin movimientos todavía.</td></tr>';
+    }else{
+      rows.forEach(function(e){
+        h+='<tr><td class="mono">'+esc(e.at)+'</td><td class="mono" style="font-size:11.5px">'+
+           esc(e.action)+'</td><td>'+esc(e.entity||"—")+'</td></tr>';
+      });
+    }
+    h+='</tbody></table></div>';
+  }
+
+  el("cview").innerHTML=h;
+
+  // Estado de la navegación y contador de pendientes
+  var navs=document.querySelectorAll(".cnav button[data-cview]");
+  Array.prototype.forEach.call(navs,function(b){
+    b.className=(b.getAttribute("data-cview")===v)?"on":"";
+  });
+  var np=0;
+  S.packages.forEach(function(p){ if(p.status==="pend") np++; });
+  var badge=el("pkgBadge");
+  badge.textContent=np; badge.hidden=(np===0);
+  applyTourSpot();
+}
+
+/* ==================================================================
+   RENDER · TELÉFONO
+   ================================================================== */
+function renderPhone(){
+  var v=S.pview, h="";
+  var myPkgs=S.packages.filter(function(p){ return p.unit===ME; });
+  var pend=myPkgs.filter(function(p){ return p.status==="pend"; });
+
+  if(v==="inicio"){
+    h+='<div class="phead"><h2>Hola, Camila</h2>'+
+       '<p>Depto 1203 · Edificio Mirador del Parque</p></div>';
+
+    if(pend.length){
+      h+='<div class="pcard" style="border-color:var(--accent);background:var(--accent-soft)">'+
+         '<h4>'+pend.length+' encomienda'+(pend.length>1?"s":"")+' por retirar</h4>'+
+         '<p>Muestra tu código en conserjería.</p></div>';
+    }
+
+    h+='<div class="plabel">Acciones rápidas</div>';
+    h+='<button class="pbtn" data-act="go-visitas">Invitar una visita</button>';
+    h+='<div style="height:8px"></div>';
+    h+='<button class="pbtn ghost" data-act="call-concierge">Llamar a conserjería</button>';
+
+    h+='<div class="plabel">Actividad reciente</div>';
+    var feed=S.ledger.filter(function(e){
+      return e.action.indexOf("PACKAGE")===0 || e.action.indexOf("VISIT")===0 ||
+             e.action.indexOf("PASS")===0    || e.action.indexOf("CALL")===0;
+    }).slice(0,5);
+    if(!feed.length){
+      h+='<div class="pcard"><p>Todavía no pasa nada. Prueba a invitar una visita '+
+         'o pide en la consola que te llamen.</p></div>';
+    }else{
+      feed.forEach(function(e){
+        h+='<div class="pcard"><h4>'+esc(friendly(e.action))+'</h4>'+
+           '<p>'+esc(e.at)+' · '+esc(e.entity||"")+'</p></div>';
+      });
+    }
+  }
+
+  else if(v==="visitas"){
+    h+='<div class="phead"><h2>Visitas</h2><p>Invita y controla quién entra a tu depto</p></div>';
+    var ap=activePass();
+    if(ap){
+      h+='<div class="qrwrap"><canvas id="qrCanvas" aria-label="Código QR del pase"></canvas>'+
+         '<div class="vname">'+esc(ap.name)+'</div>'+
+         '<div class="vexp num">Vence en '+fmtLeft(ap.remaining)+'</div>'+
+         '<div class="vtok">'+esc(ap.token.slice(0,44))+'…</div>'+
+         '<div style="height:10px"></div>'+
+         '<button class="pbtn ghost sm" data-act="revoke">Revocar este pase</button></div>';
+    }
+    h+='<div class="plabel">'+(ap?"Emitir otro pase":"Nueva invitación")+'</div>';
+    h+='<div class="pcard">'+
+       '<div class="pfld"><label for="vName">Nombre del visitante</label>'+
+       '<input id="vName" placeholder="Ej: Rodrigo Peña" maxlength="60"></div>'+
+       '<div class="pfld"><label for="vHours">Vigencia</label><select id="vHours">'+
+       '<option value="4">4 horas</option><option value="8">8 horas</option>'+
+       '<option value="24">24 horas</option></select></div>'+
+       '<button class="pbtn" data-act="makepass">Generar pase QR</button>'+
+       '<p style="margin:9px 0 0;font-size:11.5px;color:var(--ph-ink-2);line-height:1.5">'+
+       'Máximo 7 días y un solo uso: un QR no puede volverse un pase permanente.</p></div>';
+
+    var mine=S.visits.filter(function(x){ return x.unit===ME; });
+    if(mine.length){
+      h+='<div class="plabel">Historial de tu depto</div>';
+      mine.slice(0,6).forEach(function(x){
+        h+='<div class="pcard"><h4>'+esc(x.name)+'</h4>'+
+           '<p>'+esc(x.at)+' · '+esc(x.method)+(x.out?" · salió "+esc(x.out):"")+'</p></div>';
+      });
+    }
+  }
+
+  else if(v==="paquetes"){
+    h+='<div class="phead"><h2>Encomiendas</h2><p>Lo que conserjería recibió por ti</p></div>';
+    if(!myPkgs.length){
+      h+='<div class="pcard"><p>No hay encomiendas. Registra una desde la consola '+
+         'de conserjería y llegará la notificación al instante.</p></div>';
+    }else{
+      myPkgs.forEach(function(p){
+        h+='<div class="pcard">'+
+           '<div style="display:flex;align-items:flex-start;gap:9px">'+
+           '<div style="flex:1;min-width:0"><h4>'+esc(p.carrier)+'</h4>'+
+           '<p>Recibida '+esc(p.at)+(p.tracking?" · "+esc(p.tracking):"")+'</p></div>'+
+           (p.status==="pend"?'<span class="pill wait">Pendiente</span>'
+                             :'<span class="pill ok">Entregada</span>')+
+           '</div>';
+        if(p.status==="pend"){
+          h+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--ph-line)">'+
+             '<div style="font-family:var(--mono);font-size:9.5px;font-weight:600;'+
+             'letter-spacing:.12em;text-transform:uppercase;color:var(--ph-ink-2)">'+
+             'Código de retiro</div><div class="code num">'+esc(p.code)+'</div></div>';
+        }else{
+          h+='<p style="margin-top:8px;font-size:11.5px;color:var(--ph-ink-2)">'+
+             'Entregada '+esc(p.out)+' · '+esc(p.method)+'</p>';
+        }
+        h+='</div>';
+      });
+    }
+  }
+
+  el("pbody").innerHTML=h;
+
+  var navs=document.querySelectorAll(".pnav button[data-pview]");
+  Array.prototype.forEach.call(navs,function(b){
+    b.className=(b.getAttribute("data-pview")===v)?"on":"";
+  });
+  var dot=el("phoneDot");
+  dot.textContent=pend.length; dot.hidden=(pend.length===0);
+
+  var cv=el("qrCanvas");
+  if(cv){ var ap2=activePass(); if(ap2) drawQR(cv,ap2.token); }
+  applyTourSpot();
+}
+
+function friendly(a){
+  var M={
+    "PACKAGE.CREATE":"Encomienda recibida","PACKAGE.DELIVER":"Encomienda entregada",
+    "VISITOR_PASS.CREATE":"Pase QR emitido","PASS.VALIDATE":"Tu visita ingresó",
+    "PASS.VALIDATE_FAIL":"Pase rechazado en portería","VISIT.CREATE":"Visita registrada",
+    "CALL.START":"Llamada de conserjería","CALL.ANSWER":"Llamada contestada",
+    "CALL.END":"Llamada finalizada","CALL.REJECT":"Llamada rechazada",
+    "CALL.PSTN_FALLBACK":"Derivada a red telefónica"
+  };
+  return M[a]||a;
+}
+function fmtLeft(s){
+  var hh=Math.floor(s/3600), mm=Math.floor((s%3600)/60);
+  return hh+" h "+String(mm).padStart(2,"0")+" min";
+}
+
+/* ==================================================================
+   RENDER · BITÁCORA
+   ================================================================== */
+function renderLedger(){
+  var b=el("ledgerBody"), h="";
+  if(!S.ledger.length){
+    h='<tr><td colspan="6" class="empty">Sin entradas. Cada acción en los dispositivos '+
+      'escribe una línea encadenada aquí.</td></tr>';
+  }else{
+    S.ledger.forEach(function(e){
+      h+='<tr><td class="mono">'+e.seq+'</td><td class="mono">'+esc(e.at)+'</td>'+
+         '<td class="mono" style="font-size:11.5px">'+esc(e.action)+'</td>'+
+         '<td>'+esc(e.actor)+'</td><td>'+esc(e.entity||"—")+'</td>'+
+         '<td class="mono" style="font-size:11px;color:var(--pg-ink-3)">'+
+         esc(e.hash.slice(0,16))+'…</td></tr>';
+    });
+  }
+  b.innerHTML=h;
+}
+
+function verifyChain(){
+  var out=el("verifyRes");
+  if(!S.ledger.length){
+    out.textContent="No hay entradas que verificar todavía.";
+    out.className="res"; return;
+  }
+  // Recorre en orden de escritura y recalcula cada hash.
+  var asc=S.ledger.slice().reverse(), prev=null, broken=null;
+  for(var i=0;i<asc.length;i++){
+    var e=asc[i];
+    if(e.prev!==prev){ broken=e; break; }
+    if(entryHash(e)!==e.hash){ broken=e; break; }
+    prev=e.hash;
+  }
+  if(broken){
+    out.textContent="Cadena rota en la entrada "+broken.seq+".";
+    out.className="res";
+    out.style.color="var(--bad)";
+  }else{
+    out.textContent="Cadena íntegra · "+asc.length+" entrada(s) recalculada(s) y verificada(s).";
+    out.className="res ok";
+    out.style.color="";
+  }
+}
+
+/* ==================================================================
+   RECORRIDO GUIADO
+   ================================================================== */
+var TOUR=[
+  {t:'Llama al <b>depto 1203</b> en la placa de citófono. El teléfono de la derecha sonará aunque tenga No molestar activo.',
+   sel:'[data-call="1203"]', done:"call.start"},
+  {t:'Contesta desde el teléfono. Verás el indicador de <b>cifrado extremo a extremo</b> en ambos lados, y luego cuelga.',
+   sel:'#callOverlay [data-act="answer"]', done:"call.end"},
+  {t:'Ahora en el teléfono: entra a <b>Visitas</b>, escribe un nombre y genera un pase QR.',
+   sel:'.pnav [data-pview="visitas"]', done:"pass.create"},
+  {t:'En la consola, entra a <b>Visitas</b> y pulsa <b>Escanear QR</b> para validar el pase.',
+   sel:'.cnav [data-cview="visitas"]', done:"pass.scan"},
+  {t:'Entra a <b>Paquetes</b> en la consola y registra una encomienda para el 1203.',
+   sel:'.cnav [data-cview="encomiendas"]', done:"pkg.create"},
+  {t:'Pulsa <b>Entregar</b> e intenta confirmar sin el código correcto: el sistema lo rechaza igual que la base de datos.',
+   sel:'[data-deliver]', done:"pkg.deliver"}
+];
+
+function startTour(){ S.tour=0; showTour(); }
+function showTour(){
+  var bar=el("tourBar");
+  if(S.tour<0||S.tour>=TOUR.length){
+    bar.classList.remove("show");
+    clearSpot();
+    if(S.tour>=TOUR.length){
+      S.tour=-1;
+      el("tourStep").textContent="";
+      push("Recorrido completado","Sigue explorando libremente.",I.qr);
+    }
+    return;
+  }
+  bar.classList.add("show");
+  el("tourStep").textContent=(S.tour+1)+" / "+TOUR.length;
+  el("tourText").innerHTML=TOUR[S.tour].t;
+  applyTourSpot();
+}
+function advanceTour(evt){
+  if(S.tour<0||S.tour>=TOUR.length) return;
+  if(TOUR[S.tour].done===evt){ S.tour++; showTour(); }
+  else applyTourSpot();
+}
+function clearSpot(){
+  var old=document.querySelectorAll(".spot");
+  Array.prototype.forEach.call(old,function(n){ n.classList.remove("spot"); });
+}
+function applyTourSpot(){
+  clearSpot();
+  if(S.tour<0||S.tour>=TOUR.length) return;
+  var n=document.querySelector(TOUR[S.tour].sel);
+  if(n) n.classList.add("spot");
+}
+
+/* ==================================================================
+   EVENTOS
+   ================================================================== */
+document.addEventListener("click",function(ev){
+  var t=ev.target.closest? ev.target.closest("button") : null;
+  if(!t) return;
+
+  // Navegación
+  var cv=t.getAttribute("data-cview");
+  if(cv){ S.cview=cv; renderConsole(); advanceTour("nav."+cv); return; }
+  var pv=t.getAttribute("data-pview");
+  if(pv){ S.pview=pv; renderPhone(); advanceTour("nav."+pv); return; }
+
+  // Citofonía
+  var cu=t.getAttribute("data-call");
+  if(cu){ startCall(cu); return; }
+
+  var f=t.getAttribute("data-filter");
+  if(f){ S.pkgFilter=f; renderConsole(); return; }
+
+  var dv=t.getAttribute("data-deliver");
+  if(dv){ openDeliver(dv); return; }
+
+  var xt=t.getAttribute("data-exit");
+  if(xt){
+    S.visits.forEach(function(x){ if(x.id===xt){ x.out=hhmm(S.clock); } });
+    audit("VISIT.EXIT","Conserje Fuentes","salida registrada");
+    renderConsole(); renderPhone(); return;
+  }
+
+  var a=t.getAttribute("data-act");
+  if(!a) return;
+
+  switch(a){
+    case "endcall": endCall(); break;
+    case "answer":  answerCall(); break;
+    case "reject":  rejectCall(); break;
+    case "hangup":  endCall(); break;
+
+    case "scan": scanPass(); break;
+    case "clearscan": S.scan=null; renderConsole(); break;
+
+    case "askauth": {
+      var n=(el("reqName").value||"").trim();
+      if(!n){ el("reqName").focus(); return; }
+      askAuth(n, el("reqUnit").value);
+      break;
+    }
+    case "auth-yes": answerAuth(true); break;
+    case "auth-no":  answerAuth(false); break;
+
+    case "photo":
+      t.textContent="Foto capturada ✓";
+      t.setAttribute("data-photo","1");
+      break;
+
+    case "addpkg": {
+      var pb=el("photoBtn");
+      addPackage(el("pkUnit").value, el("pkCarrier").value,
+                 (el("pkTrack").value||"").trim(),
+                 pb && pb.getAttribute("data-photo")==="1");
+      break;
+    }
+
+    case "makepass": {
+      var vn=(el("vName").value||"").trim();
+      if(!vn){ el("vName").focus(); return; }
+      createPass(vn, parseInt(el("vHours").value,10));
+      break;
+    }
+    case "revoke": {
+      var ap=activePass();
+      if(ap){ ap.revoked=true; audit("VISITOR_PASS.REVOKE",ME_NAME,"pase "+ap.id); renderPhone(); }
+      break;
+    }
+    case "go-visitas": S.pview="visitas"; renderPhone(); break;
+    case "call-concierge":
+      push("Llamando a conserjería","Función disponible en la app real.",I.phone);
+      break;
+
+    case "tab-code": S.deliver.tab="code"; renderModal(); break;
+    case "tab-sig":  S.deliver.tab="sig";  renderModal(); break;
+    case "confirm-deliver": confirmDeliver(); break;
+    case "close-deliver": closeDeliver(); break;
+  }
+});
+
+el("tourBtn").addEventListener("click",startTour);
+el("tourSkip").addEventListener("click",function(){ S.tour=-1; showTour(); });
+el("verifyBtn").addEventListener("click",verifyChain);
+el("resetBtn").addEventListener("click",function(){
+  clearInterval(callTimer); clearInterval(reqTimer);
+  S.call=null; S.passes=[]; S.packages=[]; S.visits=[]; S.request=null;
+  S.scan=null; S.ledger=[]; S.seq=0; S.lastHash=null; S.deliver=null;
+  S.cview="citofonia"; S.pview="inicio"; S.pkgFilter="pend"; S.tour=-1;
+  hideIncoming(); closeDeliver(); el("authSheet").classList.remove("show");
+  el("verifyRes").textContent=""; el("verifyRes").className="res";
+  el("pushzone").innerHTML="";
+  showTour(); renderAll();
+});
+
+document.addEventListener("keydown",function(e){
+  if(e.key==="Escape"){
+    if(S.deliver) closeDeliver();
+    else if(S.call) endCall();
+  }
+});
+
+/* Reloj compartido: un minuto por cada 10 segundos reales */
+setInterval(function(){
+  S.clock++;
+  el("clock").textContent=hhmm(S.clock);
+  el("pclock").textContent=hhmm(S.clock);
+  S.passes.forEach(function(p){ if(p.remaining>0) p.remaining-=60; });
+},10000);
+
+/* ==================================================================
+   MODAL (se inyecta una vez)
+   ================================================================== */
+(function(){
+  var d=document.createElement("div");
+  d.className="modal"; d.id="delModal";
+  d.innerHTML=
+    '<div class="mbox" role="dialog" aria-modal="true" aria-labelledby="delTitle">'+
+    '<h3 id="delTitle">Entregar encomienda</h3><p class="sub" id="delSub"></p>'+
+    '<div class="tabs"><button id="tabCode" data-act="tab-code" class="on">Código de retiro</button>'+
+    '<button id="tabSig" data-act="tab-sig">Firma digital</button></div>'+
+    '<div id="delBody"></div>'+
+    '<div class="merr" id="delErr"></div>'+
+    '<div class="macts"><button class="cbtn" data-act="close-deliver">Cancelar</button>'+
+    '<button class="cbtn acc" data-act="confirm-deliver">Confirmar entrega</button></div></div>';
+  document.body.appendChild(d);
+  d.addEventListener("click",function(e){ if(e.target===d) closeDeliver(); });
+})();
+
+/* ==================================================================
+   ARRANQUE
+   ================================================================== */
+function renderAll(){ renderConsole(); renderPhone(); renderLedger(); }
+renderAll();
+
+})();
+</script>
+
+</body>
+</html>

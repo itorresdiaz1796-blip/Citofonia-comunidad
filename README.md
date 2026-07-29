@@ -20,6 +20,7 @@ Este repositorio contiene el **diseño técnico y los artefactos ejecutables que
 | [`db/schema.sql`](db/schema.sql) | Esquema PostgreSQL 16 completo: tablas, RLS, RBAC, auditoría encadenada | Aplica sin errores en PostgreSQL 16.13 |
 | [`db/tests/security_invariants.sql`](db/tests/security_invariants.sql) | 25 pruebas de invariantes de seguridad | 25/25 en verde, re-ejecutable |
 | [`api/openapi.yaml`](api/openapi.yaml) | Contrato OpenAPI 3.1 — 21 rutas, 25 operaciones | Válido, sin advertencias (Redocly) |
+| [`prototipo/index.html`](prototipo/index.html) | Prototipo navegable de la interfaz, sin dependencias | 26 comprobaciones de flujo en verde |
 
 ```bash
 # Esquema y pruebas
@@ -29,7 +30,18 @@ psql -d citofonia -v ON_ERROR_STOP=1 -f db/tests/security_invariants.sql
 
 # Contrato de API
 npx @redocly/cli lint api/openapi.yaml
+
+# Prototipo: se abre con doble clic, no necesita servidor
+xdg-open prototipo/index.html   # o simplemente arrástralo al navegador
 ```
+
+## Prototipo navegable
+
+`prototipo/index.html` pone la consola de conserjería y la app del residente lado a lado, para que se vea la interacción en tiempo real que define el producto: llamas al depto 1203 y el teléfono suena; el residente emite un pase QR y la portería lo valida; conserjería registra una encomienda y llega la notificación con el código de retiro. Cada acción escribe una entrada en la bitácora encadenada del pie, y el botón de verificación recalcula los hashes de verdad.
+
+Trae un **recorrido guiado** de seis pasos para quien lo vea por primera vez.
+
+Es una maqueta: **no hay servidor ni base de datos**, todo vive en la memoria del navegador y se pierde al recargar. El QR es un dibujo generado a partir del token, no un código escaneable ni firmado. Lo que sí respeta son las reglas de negocio: no deja entregar una encomienda sin firma o sin el código correcto, ni canjear dos veces el mismo pase.
 
 ## Las cinco decisiones que definen el diseño
 

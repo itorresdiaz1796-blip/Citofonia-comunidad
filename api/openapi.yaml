@@ -1,0 +1,959 @@
+openapi: 3.1.0
+
+info:
+  title: Citofonía Comunidad API
+  version: 1.0.0
+  description: |
+    API de citofonía online y gestión de condominios.
+
+    Reglas transversales:
+      - El `condominium_id` NUNCA se acepta como parámetro: se deriva del
+        access token verificado. Aceptarlo sería un IDOR por diseño.
+      - Todos los identificadores expuestos son UUIDv4.
+      - Las mutaciones exigen cabecera `Idempotency-Key`.
+      - Los errores siguen RFC 9457 (application/problem+json).
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: https://api.citofonia.cl/v1
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: auth
+    description: Autenticación, rotación de tokens y dispositivos
+  - name: passes
+    description: Pases QR de visita
+  - name: access
+    description: Solicitudes de ingreso y bitácora de visitas
+  - name: calls
+    description: Citofonía
+  - name: packages
+    description: Encomiendas
+  - name: audit
+    description: Auditoría y reportes
+
+paths:
+
+  # ------------------------------------------------------------------
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Autenticar con credenciales
+      security: []
+      description: |
+        Limitado a 5 intentos por 15 minutos, por IP **y** por cuenta.
+        La respuesta no distingue entre usuario inexistente y contraseña
+        incorrecta, para no permitir enumeración de cuentas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:    { type: string, format: email }
+                password: { type: string, minLength: 12, maxLength: 256 }
+                device:   { $ref: '#/components/schemas/DeviceRegistration' }
+      responses:
+        '200':
+          description: Autenticación completa o segundo factor requerido
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/TokenPair'
+                  - $ref: '#/components/schemas/MfaChallenge'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [auth]
+      summary: Rotar el refresh token
+      security: []
+      description: |
+        Emite un par nuevo e invalida el anterior. Si se presenta un token
+        ya rotado se asume robo: se revoca la familia completa, se audita
+        el evento y se notifica al titular.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: Par de tokens renovado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPair' }
+        '401':
+          description: Token inválido, expirado o reutilizado (familia revocada)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Cerrar sesión y revocar la familia de tokens del dispositivo
+      responses:
+        '204': { description: Sesión cerrada }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+  /me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Perfil, membresías y permisos efectivos
+      responses:
+        '200':
+          description: Perfil del usuario autenticado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+  /me/devices:
+    post:
+      operationId: registerDevice
+      tags: [auth]
+      summary: Registrar dispositivo y tokens de notificación
+      description: |
+        En iOS `voip_push_token` (PushKit) es obligatorio: es el único canal
+        que hace sonar la citofonía con la app cerrada o en No molestar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceRegistration' }
+      responses:
+        '201':
+          description: Dispositivo registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+  # ------------------------------------------------------------------
+  /units/{unitId}/passes:
+    parameters:
+      - $ref: '#/components/parameters/UnitId'
+    get:
+      operationId: listUnitPasses
+      tags: [passes]
+      summary: Listar pases emitidos por la unidad
+      responses:
+        '200':
+          description: Listado paginado de pases
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/VisitorPass' }
+                  next_cursor: { type: [string, 'null'] }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createVisitorPass
+      tags: [passes]
+      summary: Emitir un pase QR
+      description: |
+        Requiere `pass.create.own_unit`. La vigencia máxima es de 7 días,
+        restricción impuesta por la base de datos: un QR no puede
+        convertirse en un pase permanente.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [visitor_name, valid_until]
+              properties:
+                visitor_name:        { type: string, maxLength: 120 }
+                visitor_national_id: { type: [string, 'null'], maxLength: 20 }
+                vehicle_plate:       { type: [string, 'null'], maxLength: 12 }
+                purpose:             { type: [string, 'null'], maxLength: 200 }
+                max_uses:            { type: integer, minimum: 1, maximum: 50, default: 1 }
+                valid_from:          { type: string, format: date-time }
+                valid_until:         { type: string, format: date-time }
+      responses:
+        '201':
+          description: |
+            Pase creado. `token` es el único momento en que se entrega:
+            el servidor sólo almacena su hash.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/VisitorPass'
+                  - type: object
+                    properties:
+                      token:      { type: string, description: 'CV1.<payload>.<firma Ed25519>' }
+                      qr_png_url: { type: string, format: uri }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /passes/{passId}:
+    parameters:
+      - name: passId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      operationId: revokeVisitorPass
+      tags: [passes]
+      summary: Revocar un pase
+      responses:
+        '204': { description: Pase revocado }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /passes/validate:
+    post:
+      operationId: validateVisitorPass
+      tags: [passes]
+      summary: Validar y canjear un pase en portería
+      description: |
+        Requiere `pass.validate`. El canje es atómico (UPDATE condicional),
+        de modo que dos porterías escaneando el mismo QR simultáneamente no
+        pueden consumirlo dos veces.
+
+        Un token cuyo `cid` no coincida con el condominio del conserje se
+        rechaza y se registra como intento de acceso cruzado.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '200':
+          description: Pase válido y canjeado; visita registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:        { type: boolean, const: true }
+                  visit:        { $ref: '#/components/schemas/Visit' }
+                  visitor_name: { type: string }
+                  unit_label:   { type: string }
+                  photo_url:    { type: [string, 'null'], format: uri }
+        '409':
+          description: |
+            Pase rechazado. `reason` distingue el motivo para la interfaz de
+            portería, sin revelar si el identificador existe en otro tenant.
+          content:
+            application/problem+json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Problem'
+                  - type: object
+                    properties:
+                      reason:
+                        type: string
+                        enum: [FIRMA_INVALIDA, EXPIRADO, AUN_NO_VIGENTE, YA_USADO, REVOCADO, OTRO_CONDOMINIO]
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # ------------------------------------------------------------------
+  /access-requests:
+    post:
+      operationId: createAccessRequest
+      tags: [access]
+      summary: Solicitar autorización de ingreso al residente
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [unit_id, visitor_name]
+              properties:
+                unit_id:             { type: string, format: uuid }
+                visitor_name:        { type: string, maxLength: 120 }
+                visitor_national_id: { type: [string, 'null'] }
+                photo_upload_id:     { type: [string, 'null'], format: uuid }
+                ttl_seconds:         { type: integer, minimum: 30, maximum: 600, default: 120 }
+      responses:
+        '201':
+          description: Solicitud creada y notificada a la unidad
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccessRequest' }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+  /access-requests/{id}/respond:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: respondAccessRequest
+      tags: [access]
+      summary: Aprobar o rechazar un ingreso (residente)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [APROBADA, RECHAZADA] }
+                note:     { type: [string, 'null'], maxLength: 200 }
+      responses:
+        '200':
+          description: Decisión registrada y notificada a conserjería
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccessRequest' }
+        '409':
+          description: La solicitud ya expiró o fue resuelta
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /visits:
+    get:
+      operationId: listVisits
+      tags: [access]
+      summary: Bitácora histórica de visitas
+      description: |
+        Un RESIDENTE recibe siempre el resultado acotado a sus unidades; el
+        filtro se impone en el servidor y `unit_id` se ignora si excede su
+        alcance.
+      parameters:
+        - { name: unit_id, in: query, schema: { type: string, format: uuid } }
+        - { name: from,    in: query, schema: { type: string, format: date-time } }
+        - { name: to,      in: query, schema: { type: string, format: date-time } }
+        - { name: method,  in: query, schema: { type: string, enum: [QR, APROBACION_REMOTA, MANUAL, LISTA_FRECUENTE] } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Listado paginado de visitas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Visit' }
+                  next_cursor: { type: [string, 'null'] }
+        '4XX': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: registerVisit
+      tags: [access]
+      summary: Registrar ingreso manual
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [unit_id, visitor_name, method]
+              properties:
+                unit_id:       { type: string, format: uuid }
+                visitor_name:  { type: string, maxLength: 120 }
+                method:        { type: string, enum: [MANUAL, LISTA_FRECUENTE] }
+                vehicle_plate: { type: [string, 'null'] }
+                notes:         { type: [string, 'null'], maxLength: 500 }
+      responses:
+        '201':
+          description: Visita registrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Visit' }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+  /visits/{id}/exit:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: registerVisitExit
+      tags: [access]
+      summary: Registrar la salida de una visita
+      responses:
+        '200':
+          description: Salida registrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Visit' }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+  # ------------------------------------------------------------------
+  /calls:
+    get:
+      operationId: listCalls
+      tags: [calls]
+      summary: Historial de llamadas
+      parameters:
+        - { name: unit_id, in: query, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Listado paginado de llamadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Call' }
+                  next_cursor: { type: [string, 'null'] }
+        '4XX': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: startCall
+      tags: [calls]
+      summary: Iniciar una llamada hacia una unidad
+      description: |
+        Recibe `unit_id`, nunca un número de teléfono ni un destino
+        arbitrario. El servidor resuelve a quién notificar consultando
+        `unit_residents`, lo que cierra el vector de fraude telefónico:
+        un cliente comprometido no puede hacer que la plataforma marque a
+        un número elegido por él.
+
+        Las credenciales TURN se emiten por llamada, con TTL de 5 minutos.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [unit_id]
+              properties:
+                unit_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Llamada iniciada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  call_id: { type: string, format: uuid }
+                  ice_servers:
+                    type: array
+                    items: { $ref: '#/components/schemas/IceServer' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /calls/{id}/answer:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: answerCall
+      tags: [calls]
+      summary: Aceptar una llamada entrante
+      responses:
+        '200':
+          description: Llamada aceptada; se devuelven servidores ICE
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  call_id: { type: string, format: uuid }
+                  ice_servers:
+                    type: array
+                    items: { $ref: '#/components/schemas/IceServer' }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+  /calls/{id}/end:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: endCall
+      tags: [calls]
+      summary: Finalizar la llamada
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 60 }
+      responses:
+        '200':
+          description: Llamada finalizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Call' }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+  /webhooks/twilio/voice:
+    post:
+      operationId: handleTwilioVoiceWebhook
+      tags: [calls]
+      summary: Callback del proveedor PSTN
+      security: []
+      description: |
+        La firma `X-Twilio-Signature` se valida ANTES de interpretar el
+        cuerpo, y el endpoint sólo acepta tráfico desde los rangos IP
+        publicados por el proveedor. Un webhook de telefonía sin verificar
+        permite inyectar eventos de llamada falsos.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                CallSid:    { type: string }
+                CallStatus: { type: string }
+      responses:
+        '204': { description: Evento procesado }
+        '403': { description: Firma inválida }
+
+  # ------------------------------------------------------------------
+  /packages:
+    get:
+      operationId: listPackages
+      tags: [packages]
+      summary: Inventario de encomiendas con filtros
+      parameters:
+        - { name: status,  in: query, schema: { type: string, enum: [RECIBIDA, NOTIFICADA, ENTREGADA, DEVUELTA, EXTRAVIADA] } }
+        - { name: unit_id, in: query, schema: { type: string, format: uuid } }
+        - { name: carrier, in: query, schema: { type: string } }
+        - { name: from,    in: query, schema: { type: string, format: date-time } }
+        - { name: to,      in: query, schema: { type: string, format: date-time } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Listado paginado de encomiendas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Package' }
+                  next_cursor: { type: [string, 'null'] }
+        '4XX': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: registerPackage
+      tags: [packages]
+      summary: Registrar la recepción de una encomienda
+      description: |
+        Notifica al residente por push de forma inmediata y genera un código
+        de retiro cuyo HMAC es lo único que se almacena.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [unit_id, carrier]
+              properties:
+                unit_id:            { type: string, format: uuid }
+                carrier:            { type: string, maxLength: 80 }
+                tracking_code:      { type: [string, 'null'], maxLength: 80 }
+                recipient_name_raw: { type: [string, 'null'], maxLength: 120 }
+                description:        { type: [string, 'null'], maxLength: 300 }
+                photo_upload_id:    { type: [string, 'null'], format: uuid }
+      responses:
+        '201':
+          description: Encomienda registrada y residente notificado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Package' }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+  /packages/{id}/deliver:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: deliverPackage
+      tags: [packages]
+      summary: Registrar la entrega de una encomienda
+      description: |
+        La base de datos rechaza toda transición a ENTREGADA sin prueba de
+        entrega: firma digital, código de retiro válido o nombre del tercero
+        autorizado. Un error de la aplicación no puede producir una entrega
+        sin respaldo.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [delivery_method]
+              properties:
+                delivery_method:    { type: string, enum: [FIRMA_DIGITAL, CODIGO_RETIRO, AUTORIZADO_TERCERO] }
+                pickup_code:        { type: [string, 'null'], description: 'Requerido si delivery_method = CODIGO_RETIRO' }
+                signature_upload_id: { type: [string, 'null'], format: uuid, description: 'Requerido si delivery_method = FIRMA_DIGITAL' }
+                delivered_to_name:  { type: [string, 'null'], description: 'Requerido si delivery_method = AUTORIZADO_TERCERO' }
+      responses:
+        '200':
+          description: Entrega registrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Package' }
+        '409':
+          description: Código de retiro inválido o encomienda ya entregada
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /uploads:
+    post:
+      operationId: createUploadUrl
+      tags: [packages]
+      summary: Solicitar una URL prefirmada de subida
+      description: |
+        Devuelve una URL con TTL de 5 minutos, con `Content-Type` y tamaño
+        máximo fijados dentro de la firma. No existe ningún bucket público.
+        Un worker verifica los magic bytes del archivo y elimina los
+        metadatos EXIF, incluida la geolocalización.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, content_type, size_bytes]
+              properties:
+                kind:         { type: string, enum: [PACKAGE_PHOTO, SIGNATURE, VISITOR_PHOTO] }
+                content_type: { type: string, enum: ['image/jpeg', 'image/png', 'image/webp'] }
+                size_bytes:   { type: integer, maximum: 8388608 }
+      responses:
+        '201':
+          description: URL prefirmada emitida
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upload_id:  { type: string, format: uuid }
+                  url:        { type: string, format: uri }
+                  expires_at: { type: string, format: date-time }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+  # ------------------------------------------------------------------
+  /audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [audit]
+      summary: Consultar la auditoría del condominio
+      parameters:
+        - { name: action,      in: query, schema: { type: string } }
+        - { name: entity_type, in: query, schema: { type: string } }
+        - { name: actor_id,    in: query, schema: { type: string, format: uuid } }
+        - { name: from,        in: query, schema: { type: string, format: date-time } }
+        - { name: to,          in: query, schema: { type: string, format: date-time } }
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Entradas de auditoría
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditEntry' }
+                  next_cursor: { type: [string, 'null'] }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+  /audit-logs/verify:
+    get:
+      operationId: verifyAuditChain
+      tags: [audit]
+      summary: Verificar la integridad de la cadena de auditoría
+      description: |
+        Recalcula los hashes del período indicado. Detecta tanto la
+        eliminación de entradas como la alteración de campos en entradas
+        existentes.
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Resultado de la verificación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  intact: { type: boolean }
+                  breaks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        entry_id:  { type: string, format: uuid }
+                        entry_seq: { type: integer }
+                        broken_at: { type: string, format: date-time }
+                        reason:    { type: string }
+        '4XX': { $ref: '#/components/responses/Error' }
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT firmado con RS256 mediante clave custodiada en KMS. TTL 15 min.
+        Contiene sub, cid, mid, roles, perms, jti, iat, exp, aud, iss.
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    UnitId:
+      name: unitId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, format: uuid }
+      description: Evita duplicados ante reintentos de red.
+
+  responses:
+    Unauthorized:
+      description: Credenciales ausentes o inválidas
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: El rol carece del permiso requerido para este recurso
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyRequests:
+      description: Límite de tasa excedido
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ValidationError:
+      description: Cuerpo inválido
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Error:
+      description: |
+        Error de cliente. Toda operación puede fallar por token ausente o
+        expirado (401), permiso insuficiente para el rol (403), recurso
+        inexistente o fuera del tenant (404) o límite de tasa (429).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    '4XX': { $ref: '#/components/responses/Error' }
+
+  schemas:
+
+    Problem:
+      type: object
+      description: RFC 9457. Nunca expone detalles internos ni trazas.
+      properties:
+        type:     { type: string, format: uri }
+        title:    { type: string }
+        status:   { type: integer }
+        detail:   { type: string }
+        instance: { type: string }
+
+    TokenPair:
+      type: object
+      properties:
+        access_token:  { type: string }
+        refresh_token: { type: string }
+        token_type:    { type: string, const: Bearer }
+        expires_in:    { type: integer, const: 900 }
+
+    MfaChallenge:
+      type: object
+      properties:
+        mfa_required:  { type: boolean, const: true }
+        challenge_id:  { type: string, format: uuid }
+        methods:
+          type: array
+          items: { type: string, enum: [TOTP, SMS] }
+
+    Me:
+      type: object
+      properties:
+        id:        { type: string, format: uuid }
+        full_name: { type: string }
+        email:     { type: string, format: email }
+        memberships:
+          type: array
+          items:
+            type: object
+            properties:
+              condominium_id:   { type: string, format: uuid }
+              condominium_name: { type: string }
+              roles:
+                type: array
+                items: { type: string, enum: [ADMIN, CONSERJE, RESIDENTE, VISITA] }
+              permissions:
+                type: array
+                items: { type: string }
+              units:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:    { type: string, format: uuid }
+                    label: { type: string }
+
+    DeviceRegistration:
+      type: object
+      required: [platform]
+      properties:
+        platform:        { type: string, enum: [IOS, ANDROID, WEB] }
+        push_token:      { type: [string, 'null'] }
+        voip_push_token: { type: [string, 'null'], description: 'APNs PushKit; obligatorio en iOS' }
+        app_version:     { type: [string, 'null'] }
+        device_model:    { type: [string, 'null'] }
+
+    VisitorPass:
+      type: object
+      properties:
+        id:            { type: string, format: uuid }
+        unit_id:       { type: string, format: uuid }
+        visitor_name:  { type: string }
+        vehicle_plate: { type: [string, 'null'] }
+        max_uses:      { type: integer }
+        used_count:    { type: integer }
+        valid_from:    { type: string, format: date-time }
+        valid_until:   { type: string, format: date-time }
+        status:        { type: string, enum: [ACTIVE, USED, EXPIRED, REVOKED] }
+        created_at:    { type: string, format: date-time }
+
+    AccessRequest:
+      type: object
+      properties:
+        id:           { type: string, format: uuid }
+        unit_id:      { type: string, format: uuid }
+        visitor_name: { type: string }
+        status:       { type: string, enum: [PENDIENTE, APROBADA, RECHAZADA, EXPIRADA, CANCELADA] }
+        expires_at:   { type: string, format: date-time }
+        responded_at: { type: [string, 'null'], format: date-time }
+        created_at:   { type: string, format: date-time }
+
+    Visit:
+      type: object
+      properties:
+        id:            { type: string, format: uuid }
+        unit_id:       { type: string, format: uuid }
+        unit_label:    { type: string }
+        visitor_name:  { type: string }
+        vehicle_plate: { type: [string, 'null'] }
+        method:        { type: string, enum: [QR, APROBACION_REMOTA, MANUAL, LISTA_FRECUENTE] }
+        entry_at:      { type: string, format: date-time }
+        exit_at:       { type: [string, 'null'], format: date-time }
+        authorized_by: { type: [string, 'null'], format: uuid }
+        registered_by: { type: string, format: uuid }
+        status:        { type: string, enum: [EN_CURSO, FINALIZADA, RECHAZADA] }
+
+    Call:
+      type: object
+      properties:
+        id:                { type: string, format: uuid }
+        unit_id:           { type: [string, 'null'], format: uuid }
+        direction:         { type: string, enum: [CONSERJERIA_A_UNIDAD, UNIDAD_A_CONSERJERIA] }
+        channel:           { type: string, enum: [WEBRTC_P2P, WEBRTC_TURN, PSTN] }
+        status:            { type: string, enum: [INITIATED, RINGING, ANSWERED, REJECTED, MISSED, FAILED, ENDED] }
+        started_at:        { type: string, format: date-time }
+        answered_at:       { type: [string, 'null'], format: date-time }
+        ended_at:          { type: [string, 'null'], format: date-time }
+        duration_seconds:  { type: [integer, 'null'] }
+        fell_back_to_pstn:
+          type: boolean
+          description: |
+            Si es true, el tramo de audio NO estuvo cifrado extremo a
+            extremo: la llamada se terminó en el gateway del operador.
+            La interfaz debe mostrarlo explícitamente.
+
+    IceServer:
+      type: object
+      description: Credenciales TURN efímeras (TTL 5 min, derivadas por HMAC).
+      properties:
+        urls:
+          type: array
+          items: { type: string }
+        username:   { type: string }
+        credential: { type: string }
+        expires_at: { type: string, format: date-time }
+
+    Package:
+      type: object
+      properties:
+        id:              { type: string, format: uuid }
+        unit_id:         { type: string, format: uuid }
+        unit_label:      { type: string }
+        carrier:         { type: string }
+        tracking_code:   { type: [string, 'null'] }
+        description:     { type: [string, 'null'] }
+        photo_url:       { type: [string, 'null'], format: uri, description: 'URL prefirmada de corta vida' }
+        status:          { type: string, enum: [RECIBIDA, NOTIFICADA, ENTREGADA, DEVUELTA, EXTRAVIADA] }
+        received_at:     { type: string, format: date-time }
+        delivered_at:    { type: [string, 'null'], format: date-time }
+        delivery_method: { type: [string, 'null'], enum: [FIRMA_DIGITAL, CODIGO_RETIRO, AUTORIZADO_TERCERO, null] }
+
+    AuditEntry:
+      type: object
+      properties:
+        id:          { type: string, format: uuid }
+        seq:         { type: integer, description: 'Correlativo estricto por condominio' }
+        action:      { type: string, examples: ['VISITOR_PASS.CREATE', 'PACKAGE.DELIVER'] }
+        entity_type: { type: [string, 'null'] }
+        entity_id:   { type: [string, 'null'], format: uuid }
+        actor_user_id: { type: [string, 'null'], format: uuid }
+        actor_role:  { type: [string, 'null'], enum: [ADMIN, CONSERJE, RESIDENTE, VISITA, null] }
+        actor_ip:    { type: [string, 'null'] }
+        created_at:  { type: string, format: date-time }
+        entry_hash:  { type: string, description: 'SHA-256 en hexadecimal' }

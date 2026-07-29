@@ -1,0 +1,41 @@
+Actúa como un Ingeniero Principal de Software y Arquitecto de Ciberseguridad con amplia experiencia en aplicaciones móviles/web en tiempo real (RTC) e IoT para edificios.
+
+Tu objetivo es diseñar la arquitectura de software, la estructura de la base de datos y el flujo de desarrollo para una Aplicación Móvil y Web de "Citofonía Online y Gestión de Condominios".
+
+Debes seguir estrictamente las siguientes especificaciones técnicas y de seguridad:
+
+### 1. Requerimientos de Seguridad e Infraestructura (Cero Hackeos / Hardening)
+- Cifrado End-to-End (E2EE) para audio utilizando protocolos WebRTC con DTLS (Datagram Transport Layer Security) y SRTP (Secure Real-time Transport Protocol).
+- Autenticación segura mediante OAuth 2.0 / OIDC con JSON Web Tokens (JWT) firmados con RS256, con rotación estricta de refresh tokens y almacenamiento seguro (Keychain en iOS / Keystore en Android).
+- Modelo de Control de Acceso Basado en Roles (RBAC) con mínima concesión de privilegios para: Administrador, Conserje, Residente y Visita.
+- Protección contra vulnerabilidades OWASP Top 10 (SQLi, XSS, CSRF, IDOR). Rate limiting estricto en APIs y endpoints de autenticación.
+- Verificación de identidad y aislamiento de inquilinos (Multi-tenancy isolation) para evitar que un usuario de un condominio o departamento acceda a datos de otro.
+
+### 2. Módulo de Citofonía y Llamadas
+- Permitir comunicación directa bidireccional en tiempo real entre la Conserjería y cualquier Departamento/Residente.
+- Soporte para llamada de voz sobre protocolo VoIP/WebRTC vía Wi-Fi / Datos móviles.
+- Fallback a Red Telefónica (PSTN/GSM) mediante integración con APIs de telecomunicaciones (ej. Twilio o Plivo) en caso de fallos de conexión a internet o cuando el residente no tenga la app abierta.
+- Sistema de Alertas de Alta Prioridad (Push Notifications con prioridad crítica en iOS/Android) para que la llamada suene incluso si el teléfono móvil está en modo "No molestar" o con la app en segundo plano.
+
+### 3. Módulo de Control de Acceso y Visitas
+- Generación de Códigos QR dinámicos e infalsificables (con tiempo de expiración y firma criptográfica) por parte de los residentes para sus visitas.
+- Interfaz de Conserjería con escáner QR mediante cámara para validación instantánea de ingresos.
+- Flujo alternativo: Solicitud de ingreso directa desde la conserjería mediante la App (enviando una notificación de aprobación en tiempo real al departamento correspondiente para autorización remota).
+
+### 4. Módulo de Gestión de Encomiendas e Inventario
+- Registro rápido en Conserjería: Individualización del paquete (Empresa de transporte, Código de seguimiento opcional, foto del paquete, departamento y residente destinatario).
+- Notificación push instantánea e inequívoca al residente al momento del registro.
+- Control de entrega: Firma digital en pantalla o escaneo de código de retiro personal del residente para cambiar el estado a "Entregado".
+
+### 5. Módulo de Registros, Auditoría e Inventarios
+- Bitácora Histórica de Visitas (Entradas, salidas, autorizador, método de ingreso).
+- Inventario en tiempo real de encomiendas (Paquetes pendientes de retiro, recibidos, entregados) con filtros por fecha y departamento.
+- Logs de Auditoría Inmutables (Audit Logs) para todas las acciones críticas dentro del sistema por motivos de seguridad y trazabilidad.
+
+---
+
+### Entregables Requeridos:
+1. Arquitectura del Sistema: Diagrama de componentes e infraestructura recomendada (Frontend, Backend, Proveedores RTC/VoIP, Base de datos).
+2. Modelo de Datos: Esquema de base de datos relacional (PostgreSQL) con entidades, relaciones y campos clave.
+3. API Endpoints: Especificación de las principales rutas REST / GraphQL y WebSockets/WebRTC necesarios.
+4. Estrategia de Implementación: Pasos fase por fase para el desarrollo del Producto Mínimo Viable (MVP) enfocado en la seguridad.

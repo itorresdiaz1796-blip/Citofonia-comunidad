@@ -12,6 +12,7 @@ Este repositorio contiene el **diseño técnico y los artefactos ejecutables que
 | 2 | [Modelo de datos](docs/02-modelo-datos.md) | Entidades, aislamiento multi-tenant, auditoría inmutable, matriz RBAC |
 | 3 | [Especificación de API](docs/03-api.md) | REST, WebSocket, señalización WebRTC, formato del token QR, defensas OWASP |
 | 4 | [Plan de implementación del MVP](docs/04-plan-mvp.md) | Seis fases con puertas de seguridad, cronograma y riesgos |
+| 5 | [Análisis de cobertura de pruebas](docs/05-cobertura-pruebas.md) | Qué está probado, qué no, y tres defectos que las pruebas ausentes no detectan |
 
 ## Artefactos ejecutables
 
